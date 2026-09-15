@@ -55,6 +55,33 @@
 
 ---
 
+## 3단계 — 나만의 투리니 꾸미기
+
+### 새로 만든 파일
+| 파일 | 내용 |
+| --- | --- |
+| `app/avatar-items.ts` | 공통 기준점(5곳), 6슬롯 아이템 20개, 해제 조건 순수 함수 |
+| `app/turini-avatar.tsx` | 캐릭터 무대 + 꾸미기 화면 |
+| `app/turini-avatar.css` | 무대·슬롯·아이템·저장 UI |
+| `tests/avatar-items.test.mjs` | 해제 규칙·저장 안전성·가림 검사 12개 |
+| `design-assets/turini-avatar/NEEDED_ITEM_ASSETS.md` | 실제 액세서리 자산 규격서 |
+
+### 고친 파일
+- `app/layout.tsx` — CSS import 1줄
+- `app/turini-character.tsx` · `.css` — `frozen` 옵션 추가(꾸미기 화면에서 한 프레임 고정)
+- `app/page.tsx` — `Progress.avatar` 추가, 기본값·정규화, 마이페이지에 꾸미기 화면 연결
+
+### 저장 구조
+`turini_users.progress` JSONB 안에 `avatar` 한 필드를 더 넣었습니다.
+**DB 마이그레이션 없음, API 변경 없음.** 저장은 기존 `PUT /api/account` 경로를 그대로 탑니다.
+해제 목록은 저장하지 않고 XP·레벨·연속 학습·카테고리 진도에서 매번 계산합니다.
+
+### 실제 그림이 없어 남겨 둔 것
+모자·안경·목·가방·손 소품은 **위치 확인용 임시 도형**이며 화면에 `개발 확인용` 으로 표시됩니다.
+배경은 색만 쓰므로 지금이 최종본입니다. 규격은 위 자산 규격서 참고.
+
+---
+
 ## 한 번도 건드리지 않은 파일
 
 `app/quiz-scheduler.ts` · `app/answer-utils.ts` · `app/portfolio-rules.ts` ·
@@ -70,7 +97,7 @@
 ## 검사
 
 ```
-npm test    68 passed / 0 failed   (원래 49 + 캐릭터 8 + 지도 11)
+npm test    80 passed / 0 failed   (원래 49 + 캐릭터 8 + 지도 11 + 꾸미기 12)
 npm run lint  통과
 npm run build 통과
 ```

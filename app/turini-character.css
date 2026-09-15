@@ -167,6 +167,15 @@
     turini-shadow-breathe 3.2s ease-in-out 1.21s infinite;
 }
 
+/* 꾸미기 화면처럼 액세서리를 붙여야 할 때는 캐릭터를 멈춰 세웁니다. */
+.turini[data-frozen="true"] .turini__stage,
+.turini[data-frozen="true"] .turini__sprite,
+.turini[data-frozen="true"] .turini__shadow {
+  animation: none !important;
+}
+.turini[data-frozen="true"] .turini__sprite { transform: none !important; }
+.turini[data-frozen="true"] .turini__shadow { transform: translate(-50%, -50%) !important; }
+
 /* ── 애니메이션을 줄이는 시스템 설정 ────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .turini__stage,

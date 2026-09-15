@@ -12,6 +12,13 @@ import {
 import { isAnswerCorrect } from "./answer-utils";
 import Turini from "./turini-character";
 import LearningMap from "./learning-map";
+import TuriniDressUp, { TuriniStage } from "./turini-avatar";
+import {
+  DEFAULT_AVATAR,
+  avatarStatsFrom,
+  normalizeAvatar,
+  type TuriniAvatar,
+} from "./avatar-items";
 import { financeLevelForRawScore } from "./diagnosis-utils";
 import {
   categoryLessonPool,
@@ -105,6 +112,8 @@ type Progress = {
   studySessions: number;
   conceptReviews: Record<string, ConceptReview>;
   pendingRetries: PendingRetry[];
+  /** 나만의 투리니 꾸미기 — 슬롯별 아이템 id */
+  avatar: TuriniAvatar;
 };
 
 type QuizSession = {
@@ -176,6 +185,7 @@ const DEFAULT_PROGRESS: Progress = {
   studySessions: 0,
   conceptReviews: {},
   pendingRetries: [],
+  avatar: DEFAULT_AVATAR,
 };
 
 const DIAG_POINTS: Record<string, number> = {
@@ -295,6 +305,7 @@ export default function Home() {
       weakTags: Array.isArray(savedProgress.weakTags) ? savedProgress.weakTags : [],
       conceptReviews: savedProgress.conceptReviews || {},
       pendingRetries: savedProgress.pendingRetries || [],
+      avatar: normalizeAvatar(savedProgress.avatar),
     });
     setAllocation(normalizeAllocation(savedPortfolio.allocation));
     setAmount(typeof savedPortfolio.amount === "number" ? savedPortfolio.amount : 10000000);
@@ -309,7 +320,7 @@ export default function Home() {
   };
 
   const resetClientState = () => {
-    setProgress({ ...DEFAULT_PROGRESS, completedIds: [], completedLessons: [], weakTags: [], conceptReviews: {}, pendingRetries: [] });
+    setProgress({ ...DEFAULT_PROGRESS, completedIds: [], completedLessons: [], weakTags: [], conceptReviews: {}, pendingRetries: [], avatar: { ...DEFAULT_AVATAR } });
     setAllocation({ ...EMPTY_ALLOCATION });
     setAmount(10000000);
     setGoal("장기 자산 증식");
@@ -449,6 +460,27 @@ export default function Home() {
   const activeCategoryLevel = categoryLevelForSolved(activeCategorySolved);
   const activeCategoryCompletedLessons = completedCategoryLessonsForSolved(activeCategorySolved);
   const activeCategoryCurrentLesson = activeCategoryCompletedLessons < MAX_CATEGORY_LEVEL ? activeCategoryCompletedLessons + 1 : null;
+
+  const avatarStats = useMemo(
+    () =>
+      avatarStatsFrom({
+        xp: progress.xp,
+        level: progress.level,
+        streak: progress.streak,
+        solved: progress.completedIds.length,
+        categoryLessons: Object.fromEntries(
+          CATEGORIES.map((category) => [
+            category.name,
+            completedCategoryLessonsForSolved(categoryCounts[category.name] || 0),
+          ]),
+        ),
+      }),
+    [progress.xp, progress.level, progress.streak, progress.completedIds.length, categoryCounts],
+  );
+
+  const saveAvatar = (next: TuriniAvatar) => {
+    setProgress((current) => ({ ...current, avatar: next }));
+  };
 
   const openSession = (mode: QuizMode, title: string, pool: QuizQuestion[], count = 10, lesson?: number) => {
     if (!pool.length) return;
@@ -857,7 +889,7 @@ export default function Home() {
 
           {view === "profile" && (
             <div className="screen profile-screen">
-              <section className="profile-hero"><div className="profile-mascot-frame"><Turini state="idle" className="turini-profile" /></div><div><p className="eyebrow">MY PROFILE</p><h1>{account.username}</h1><span>나만의 금융 학습 기록</span></div></section>
+              <section className="profile-hero"><div className="profile-mascot-frame"><TuriniStage avatar={progress.avatar} className="turini-dress__stage--hero" /></div><div><p className="eyebrow">MY PROFILE</p><h1>{account.username}</h1><span>나만의 금융 학습 기록</span></div></section>
               <section className="card-block account-card">
                 <div><p className="eyebrow">ACCOUNT</p><h2>{account.username}</h2><small className={`save-state ${saveState}`}>{saveState === "saving" ? "기록 저장 중…" : saveState === "error" ? "저장 실패 · 인터넷 연결을 확인해 주세요" : "학습 기록이 계정에 저장돼요"}</small></div>
                 <div className="account-actions"><button onClick={logout}>로그아웃</button><button className="danger-link" onClick={() => { setResetConfirm(true); setResetError(""); }}>계정 초기화</button></div>
@@ -865,6 +897,12 @@ export default function Home() {
               </section>
               <section className="profile-stats"><article><span>🔥</span><strong>{progress.streak}일</strong><small>연속 학습</small></article><article><span>💎</span><strong>{progress.xp}</strong><small>총 XP</small></article><article><span>🏆</span><strong>Lv. {progress.level}</strong><small>현재 레벨</small></article><article><span>✓</span><strong>{progress.completedIds.length}</strong><small>푼 문제</small></article></section>
               <section className="card-block growth-card"><div className="section-heading"><div><p className="eyebrow">학습 현황</p><h2>나의 성장 기록</h2></div><span className="diagnosis-complete">✓ 최초 진단 완료</span></div><div className="growth-summary"><article><span>금융 수준</span><strong>{progress.financeLevel}</strong><small>진단 결과에 맞춰 학습 중</small></article><article><span>투자 성향</span><strong>{progress.tendency}</strong><small>나에게 맞는 자산배분 기준</small></article></div></section>
+              <TuriniDressUp
+                avatar={progress.avatar}
+                stats={avatarStats}
+                saving={saveState === "saving"}
+                onSave={saveAvatar}
+              />
               <section className="card-block"><p className="eyebrow">획득 배지</p><h2>투리니 배지 컬렉션</h2><div className="badge-grid">{[{icon:"🌱",name:"첫걸음"},{icon:"🔥",name:"연속 학습"},{icon:"💎",name:"XP 수집가"},{icon:"🎯",name:"정답 명중"},{icon:"🛡️",name:"분산 투자"},{icon:"🏆",name:"금융 성장"}].map((badge,index)=><div className={index > Math.floor(progress.completedIds.length / 20) ? "locked" : ""} key={badge.name}><span>{badge.icon}</span><b>{badge.name}</b></div>)}</div></section>
             </div>
           )}

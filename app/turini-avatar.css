@@ -1,0 +1,320 @@
+/* ==========================================================================
+   나만의 투리니 꾸미기
+
+   - 무대는 정사각형이고 액세서리 위치·크기는 전부 % 입니다.
+     화면 폭이 바뀌어도 캐릭터와 액세서리가 같은 비율로 같이 커집니다.
+   - globals.css 는 고치지 않았습니다.
+   ========================================================================== */
+
+.turini-dress {
+  margin-top: 16px;
+  padding: 18px 16px 16px;
+}
+
+.turini-dress__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.turini-dress__head h2 { margin: 2px 0 0; font-size: 21px; letter-spacing: -.6px; }
+.turini-dress__count {
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: var(--green-pale, #eefaf3);
+  color: var(--green-dark);
+  font-size: 11px; font-weight: 900;
+  white-space: nowrap;
+}
+
+/* ── 무대 ───────────────────────────────────────────────────── */
+.turini-dress__stage {
+  position: relative;
+  width: min(300px, 100%);
+  margin: 14px auto 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 26px;
+  overflow: hidden;
+  background: #f3f8f5;
+  box-shadow: inset 0 0 0 1px rgba(24, 72, 49, .07);
+}
+.turini-dress__stage--large { width: min(320px, 100%); }
+
+.turini-dress__scene {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 70% at 50% 108%, color-mix(in srgb, var(--scene-tint) 82%, #ffffff) 0 42%, transparent 43%),
+    linear-gradient(180deg, color-mix(in srgb, var(--scene-tint) 26%, #ffffff), color-mix(in srgb, var(--scene-tint) 58%, #ffffff));
+}
+
+/* 캐릭터와 액세서리는 같은 정사각형 안에 있습니다. 기준점이 % 라 함께 확대·축소됩니다. */
+.turini-dress__figure {
+  position: absolute;
+  inset: 0;
+}
+.turini-dress__character {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  z-index: 1;
+}
+.turini-dress__piece {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+.turini-dress__piece svg { width: 100%; height: 100%; display: block; }
+
+/* 개발 확인용 기준점 표시 */
+.turini-dress__anchor {
+  position: absolute;
+  width: 10px; height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #ff3b6b;
+  box-shadow: 0 0 0 2px #fff;
+  z-index: 9;
+}
+
+.turini-dress__scene-art {
+  display: block;
+  width: 100%; height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--scene-tint) 30%, #ffffff), var(--scene-tint));
+}
+
+.turini-dress__notice {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px dashed #d9c48f;
+  border-radius: 14px;
+  background: #fffaec;
+  color: #6b5a2c;
+  font-size: 11px; line-height: 1.6;
+  word-break: keep-all;
+}
+.turini-dress__notice b {
+  display: block;
+  margin-bottom: 3px;
+  color: #9a7b1f;
+  font-size: 11px;
+}
+
+/* ── 부위 선택 ──────────────────────────────────────────────── */
+.turini-dress__slots {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.turini-dress__slot {
+  min-width: 0;
+  padding: 10px 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #fff;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.turini-dress__slot[data-active="true"] {
+  border-color: var(--green);
+  background: var(--green-pale, #eefaf3);
+}
+.turini-dress__slot-art {
+  display: grid;
+  place-items: center;
+  width: 42px; height: 42px;
+  margin: 0 auto 6px;
+  border-radius: 12px;
+  background: #f4f8f5;
+  overflow: hidden;
+}
+.turini-dress__slot-art svg { width: 78%; height: 78%; }
+.turini-dress__slot-art i { color: #a9b4ad; font-size: 18px; font-style: normal; font-weight: 900; }
+.turini-dress__slot b { display: block; font-size: 11px; color: var(--ink); }
+.turini-dress__slot small {
+  display: block; margin-top: 2px;
+  color: var(--muted); font-size: 9px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── 전체 / 보유 / 잠김 ─────────────────────────────────────── */
+.turini-dress__filters {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.turini-dress__filters > div {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 12px;
+  background: #f1f5f2;
+}
+.turini-dress__filters button {
+  min-height: 32px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #6f7c74;
+  font-size: 11px; font-weight: 900;
+  cursor: pointer;
+}
+.turini-dress__filters button[data-active="true"] {
+  background: #fff;
+  color: var(--green-dark);
+  box-shadow: 0 2px 8px rgba(40, 80, 45, .09);
+}
+.turini-dress__clear {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: #6f7c74;
+  font-size: 11px; font-weight: 900;
+  cursor: pointer;
+}
+.turini-dress__clear:disabled { opacity: .45; cursor: not-allowed; }
+
+.turini-dress__empty {
+  margin: 16px 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ── 아이템 목록 ────────────────────────────────────────────── */
+.turini-dress__grid {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+.turini-dress__item {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.turini-dress__item:not(:disabled):hover { transform: translateY(-2px); }
+.turini-dress__item[data-state="selected"] {
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 26%, #ffffff);
+  background: var(--green-pale, #eefaf3);
+}
+.turini-dress__item[data-state="locked"] { cursor: not-allowed; background: #f7f9f8; }
+.turini-dress__item[data-state="locked"] .turini-dress__item-art { opacity: .4; }
+
+.turini-dress__item-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  margin-bottom: 7px;
+  border-radius: 13px;
+  background: #f4f8f5;
+  overflow: hidden;
+}
+.turini-dress__item-art > svg:first-child { width: 80%; height: 80%; }
+.turini-dress__item-art .turini-dress__scene-art { border-radius: 0; }
+.turini-dress__item-lock {
+  position: absolute;
+  width: 22px; height: 22px;
+  color: #8e9a93;
+  opacity: 1;
+}
+.turini-dress__item[data-state="locked"] .turini-dress__item-lock { opacity: 1; }
+
+.turini-dress__item b {
+  display: block;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+.turini-dress__temp {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fff3d2;
+  color: #93761d;
+  font-size: 8px; font-style: normal; font-weight: 900;
+}
+.turini-dress__item small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px; font-weight: 800;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+.turini-dress__need i {
+  display: block;
+  margin-top: 2px;
+  color: var(--green-dark);
+  font-style: normal;
+}
+
+/* ── 저장 ───────────────────────────────────────────────────── */
+.turini-dress__save {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.turini-dress__save p { margin: 0; color: var(--muted); font-size: 11px; }
+.turini-dress__save > div { display: flex; gap: 8px; }
+.turini-dress__save .secondary-button,
+.turini-dress__save .primary-button { min-height: 42px; padding: 0 18px; font-size: 13px; }
+
+/* ── 좁은 화면 ──────────────────────────────────────────────── */
+@media (max-width: 420px) {
+  .turini-dress { padding: 15px 12px 14px; }
+  .turini-dress__head h2 { font-size: 19px; }
+  .turini-dress__stage--large { width: min(260px, 100%); }
+  .turini-dress__slots { gap: 6px; }
+  .turini-dress__slot { padding: 8px 5px 7px; border-radius: 13px; }
+  .turini-dress__slot-art { width: 36px; height: 36px; }
+  .turini-dress__slot b { font-size: 10px; }
+  .turini-dress__grid { gap: 7px; }
+  .turini-dress__item { padding: 8px 5px 7px; border-radius: 14px; }
+  .turini-dress__save { flex-direction: column; align-items: stretch; }
+  .turini-dress__save > div { display: grid; grid-template-columns: 1fr 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turini-dress__item { transition: none !important; }
+  .turini-dress__item:not(:disabled):hover { transform: none !important; }
+}
+
+/* ── 마이페이지 상단의 작은 무대 ────────────────────────────── */
+.profile-mascot-frame .turini-dress__stage--hero {
+  width: 142px;
+  margin: 0;
+  border-radius: 22px;
+}
+@media (max-width: 620px) {
+  .profile-mascot-frame .turini-dress__stage--hero { width: 120px; border-radius: 19px; }
+}
+@media (max-width: 390px) {
+  .profile-mascot-frame .turini-dress__stage--hero { width: 106px; border-radius: 17px; }
+}
