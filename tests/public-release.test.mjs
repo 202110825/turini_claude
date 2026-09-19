@@ -6,6 +6,8 @@ const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "
 const feedbackRouteSource = await readFile(new URL("../app/api/portfolio-feedback/route.ts", import.meta.url), "utf8");
 const envExampleSource = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 const quizData = JSON.parse(await readFile(new URL("../public/data/quizData_720_FINAL.json", import.meta.url), "utf8"));
+const spriteSource2 = await readFile(new URL("../app/turini-sprite.tsx", import.meta.url), "utf8");
+const avatarSource2 = await readFile(new URL("../app/turini-avatar.tsx", import.meta.url), "utf8");
 
 test("signed-in pages display the active account ID", () => {
   assert.match(pageSource, /account\.username/);
@@ -83,4 +85,26 @@ test("포트폴리오 비중은 슬라이더·숫자·＋/− 세 가지로 함�
   assert.match(pageSource, /allocationReady/);
   // 합계가 정확히 100%일 때만 분석 버튼이 열립니다.
   assert.match(pageSource, /disabled=\{!allocationReady\}/);
+});
+
+test("금액 입력칸은 앞의 0 없이 쉼표로 보여 주고, 설명은 반올림하지 않는다", () => {
+  // type="number" 는 "035000" 과 35000 을 같게 보아 화면이 고쳐지지 않습니다.
+  const start = pageSource.indexOf("function MoneyField");
+  assert.ok(start > 0, "MoneyField 를 찾지 못했습니다");
+  const body = pageSource.slice(start, pageSource.indexOf("\nfunction ", start + 10));
+  assert.doesNotMatch(body, /type="number"/);
+  assert.match(body, /type="text"/);
+  assert.match(pageSource, /inputMode="numeric"/);
+  assert.match(pageSource, /value=\{value\.toLocaleString\("ko-KR"\)\}/);
+  assert.match(pageSource, /replace\(\/\[\^0-9\]\/g, ""\)/);
+  // 1억 미만은 만원 단위로 반올림하지 않고 그대로 적습니다.
+  assert.doesNotMatch(pageSource, /Math\.round\(absolute \/ 10_000\)/);
+  assert.match(pageSource, /const man = Math\.floor\(absolute \/ 10_000\)/);
+  assert.match(pageSource, /const rest = absolute % 10_000/);
+});
+
+test("애니메이션 그림을 못 읽으면 캐릭터가 사라지지 않고 리그로 대체된다", () => {
+  assert.match(spriteSource2, /resolve\(null\)/);
+  assert.match(spriteSource2, /onAtlasMissing/);
+  assert.match(avatarSource2, /atlasMissing \|\| motion === "idle"/);
 });
