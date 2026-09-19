@@ -6,6 +6,7 @@ import {
   categoryLessonPool,
   categoryLevelForSolved,
   completedCategoryLessonsForSolved,
+  isDifficultyUnlocked,
   MAX_CATEGORY_LEVEL,
 } from "../app/category-progress.ts";
 
@@ -16,6 +17,14 @@ test("each category starts at level 1 and gains a level per 10 unique solved que
   assert.equal(categoryLevelForSolved(9), 1);
   assert.equal(categoryLevelForSolved(10), 2);
   assert.equal(categoryLevelForSolved(20), 3);
+});
+
+test("중급과 고급은 앞 난이도 네 레슨을 마쳐야 열린다", () => {
+  assert.equal(isDifficultyUnlocked("초급", 0), true);
+  assert.equal(isDifficultyUnlocked("중급", 3), false);
+  assert.equal(isDifficultyUnlocked("중급", 4), true);
+  assert.equal(isDifficultyUnlocked("고급", 7), false);
+  assert.equal(isDifficultyUnlocked("고급", 8), true);
 });
 
 test("category level is bounded to the 120-question, 12-level path", () => {

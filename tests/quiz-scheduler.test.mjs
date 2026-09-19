@@ -29,6 +29,15 @@ test("a normal ten-question session contains ten distinct concepts", () => {
   assert.equal(session.filter((question) => question.reviewKind).length, 0);
 });
 
+test("ten-question sessions balance all four question types", () => {
+  for (let seed = 1; seed <= 80; seed += 1) {
+    const session = planSessionQuestions(makePool(40), 10, seed, {}, 0, []);
+    const counts = TYPES.map((type) => session.filter((question) => question.type === type).length);
+    assert.equal(session.length, 10);
+    assert.ok(counts.every((count) => count >= 2 && count <= 3), `seed ${seed}: ${counts.join(",")}`);
+  }
+});
+
 test("the next session mixes seven new concepts with three due reviews", () => {
   const pool = makePool();
   const first = planLearningQuestions(pool, 10, 41, {}, 0);

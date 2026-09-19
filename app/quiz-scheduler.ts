@@ -97,7 +97,17 @@ function stringSeed(value: string) {
   return [...value].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 1000003, 7);
 }
 
-function chooseVariant<T extends SchedulableQuestion>(variants: T[], seed: number, lastType?: string, firstExposure = false) {
+function chooseVariant<T extends SchedulableQuestion>(
+  variants: T[],
+  seed: number,
+  lastType?: string,
+  firstExposure = false,
+  preferredType?: string,
+) {
+  if (preferredType && preferredType !== lastType) {
+    const preferred = variants.filter((question) => question.type === preferredType);
+    if (preferred.length) return seededShuffle(preferred, seed + stringSeed(preferredType))[0];
+  }
   if (firstExposure) {
     const introductory = variants.filter((question) => question.type === "4지선다");
     if (introductory.length) return seededShuffle(introductory, seed)[0];
@@ -111,6 +121,18 @@ function chooseVariant<T extends SchedulableQuestion>(variants: T[], seed: numbe
     if (candidates.length) return seededShuffle(candidates, seed + stringSeed(type))[0];
   }
   return seededShuffle(variants, seed)[0];
+}
+
+/**
+ * 10문항에서 네 유형이 한쪽으로 몰리지 않도록 목표 순서를 만듭니다.
+ * 10문항이면 유형별 2~3개(3·3·2·2), 8문항이면 각 2개가 됩니다.
+ */
+export function balancedTypeTargets(count: number, seed: number) {
+  const safeCount = Math.max(0, Math.floor(count));
+  const rotated = seededShuffle(QUESTION_TYPE_ORDER, seed + 67);
+  const targets: string[] = [];
+  for (let index = 0; index < safeCount; index += 1) targets.push(rotated[index % rotated.length]);
+  return seededShuffle(targets, seed + 71);
 }
 
 function prepareChoices<T extends SchedulableQuestion>(question: T, seed: number) {
@@ -161,10 +183,12 @@ export function planLearningQuestions<T extends SchedulableQuestion>(
     return unseen.length ? unseen : variants;
   };
 
-  return seededShuffle(selected, seed + 37).slice(0, count).map(([key, group], index) => {
+  const ordered = seededShuffle(selected, seed + 37).slice(0, count);
+  const typeTargets = balancedTypeTargets(ordered.length, seed);
+  return ordered.map(([key, group], index) => {
     const review = reviews[key];
     const variants = freshVariants(group);
-    const question = chooseVariant(variants, seed + index * 13, review?.lastType, !review);
+    const question = chooseVariant(variants, seed + index * 13, review?.lastType, false, typeTargets[index]);
     const prepared = prepareChoices(question, seed + index * 29);
     return review ? ({ ...prepared, reviewKind: "scheduled" } as T) : prepared;
   });
@@ -245,7 +269,13 @@ export function scheduleRetry<T extends SchedulableQuestion, S extends { questio
     };
   }
   const targetIndex = placement.targetIndex;
-  const retry = chooseVariant(variants, stringSeed(question.id) + targetIndex, question.type);
+  const retry = chooseVariant(
+    variants,
+    stringSeed(question.id) + targetIndex,
+    question.type,
+    false,
+    session.questions[targetIndex].type,
+  );
   const nextQuestions = [...session.questions];
   nextQuestions[targetIndex] = { ...prepareChoices(retry, stringSeed(question.id) + targetIndex), reviewKind: "retry" } as T;
   return { session: { ...session, questions: nextQuestions } as S, deferred: null };
@@ -307,5 +337,37 @@ export function planSessionQuestions<T extends SchedulableQuestion>(
   for (let index = 0; index < slots.length; index += 1) {
     if (!slots[index]) slots[index] = normalQuestions[normalIndex++];
   }
-  return slots.filter((question): question is T => Boolean(question));
+  const planned = slots.filter((question): question is T => Boolean(question));
+  const targets = balancedTypeTargets(planned.length, seed + 101);
+  const targetCounts = new Map<string, number>();
+  targets.forEach((type) => targetCounts.set(type, (targetCounts.get(type) || 0) + 1));
+  const used = new Map<string, number>();
+
+  // 오답 재출제의 위치·유형 제약은 먼저 보존합니다.
+  planned.filter((question) => question.reviewKind === "retry").forEach((question) => {
+    used.set(question.type, (used.get(question.type) || 0) + 1);
+  });
+
+  return planned.map((question, index) => {
+    if (question.reviewKind === "retry") return question;
+    const key = conceptKey(question);
+    const lastType = question.reviewKind === "scheduled" ? reviews[key]?.lastType : undefined;
+    const conceptVariants = pool.filter((candidate) => conceptKey(candidate) === key);
+    const recent = new Set(context?.recentIds || []);
+    const unseenVariants = conceptVariants.filter((candidate) => !recent.has(candidate.id));
+    const variants = unseenVariants.length ? unseenVariants : conceptVariants;
+    const preferred = QUESTION_TYPE_ORDER
+      .filter((type) => type !== lastType && variants.some((candidate) => candidate.type === type))
+      .sort((left, right) => {
+        const leftNeed = (targetCounts.get(left) || 0) - (used.get(left) || 0);
+        const rightNeed = (targetCounts.get(right) || 0) - (used.get(right) || 0);
+        return rightNeed - leftNeed || stringSeed(left) - stringSeed(right);
+      })[0];
+    const replacement = chooseVariant(variants, seed + index * 53, lastType, false, preferred);
+    used.set(replacement.type, (used.get(replacement.type) || 0) + 1);
+    const prepared = prepareChoices(replacement, seed + index * 59);
+    return question.reviewKind === "scheduled"
+      ? ({ ...prepared, reviewKind: "scheduled" } as T)
+      : prepared;
+  });
 }

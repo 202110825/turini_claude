@@ -22,10 +22,13 @@ import {
 import { loadCustomizationCache, saveCustomizationCache } from "./avatar-storage";
 import { advanceStreak, normalizeStreak } from "./streak";
 import { financeLevelForRawScore } from "./diagnosis-utils";
+import { friendlyExplanation } from "./explanation-tone";
+import { retainLearningQuestionIds } from "./learning-progress";
 import {
   categoryLessonPool,
   categoryLevelForSolved,
   completedCategoryLessonsForSolved,
+  isDifficultyUnlocked,
   MAX_CATEGORY_LEVEL,
   QUESTIONS_PER_CATEGORY,
   QUESTIONS_PER_CATEGORY_LEVEL,
@@ -306,14 +309,15 @@ export default function Home() {
   /** 난이도 선택 화면에서 고른 난이도. 지도에서 그 구간으로 자동 이동합니다. */
   const [focusDifficulty, setFocusDifficulty] = useState<Difficulty | null>(null);
 
-  const hydrateAccount = (payload: AccountPayload) => {
+  const hydrateAccount = (payload: AccountPayload, learningIds: Set<string>) => {
     const savedProgress = payload.progress || {};
     const savedPortfolio = payload.portfolio || {};
     setAccount(payload.account);
     setProgress({
       ...DEFAULT_PROGRESS,
       ...savedProgress,
-      completedIds: Array.isArray(savedProgress.completedIds) ? savedProgress.completedIds : [],
+      // 예전 버전에서 진단 18문항이 학습 문제로 저장된 기록도 로그인 시 자동 보정합니다.
+      completedIds: retainLearningQuestionIds(savedProgress.completedIds, learningIds),
       completedLessons: Array.isArray(savedProgress.completedLessons) ? savedProgress.completedLessons : [],
       weakTags: Array.isArray(savedProgress.weakTags) ? savedProgress.weakTags : [],
       conceptReviews: savedProgress.conceptReviews || {},
@@ -373,7 +377,10 @@ export default function Home() {
         localStorage.removeItem("turini-public-progress-v1");
         localStorage.removeItem("turini-public-portfolio-v1");
         if (accountResponse.ok) {
-          hydrateAccount(await accountResponse.json() as AccountPayload);
+          hydrateAccount(
+            await accountResponse.json() as AccountPayload,
+            new Set((Array.isArray(quizItems) ? quizItems : []).map((item) => item.id)),
+          );
         } else {
           setAccount(null);
           setAccountStateReady(false);
@@ -447,7 +454,7 @@ export default function Home() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) return payload.error || "계정 정보를 확인해 주세요.";
-      hydrateAccount(payload as AccountPayload);
+      hydrateAccount(payload as AccountPayload, new Set(questions.map((item) => item.id)));
       setView("home");
       return null;
     } catch {
@@ -571,12 +578,6 @@ export default function Home() {
 
   const startDaily = () => openSession("daily", "오늘의 금융 퀴즈", questions, 10);
 
-  const startCategory = (category: string, difficulty?: Difficulty) => {
-    setActiveCategoryName(category);
-    const pool = questions.filter((question) => question.category === category && (!difficulty || question.difficulty === difficulty));
-    openSession("category", `${category} · ${difficulty || "전체"}`, pool, 10);
-  };
-
   const startLesson = (category: string, lesson: number) => {
     setActiveCategoryName(category);
     const lessonPool = categoryLessonPool(questions, category, lesson);
@@ -633,7 +634,8 @@ export default function Home() {
 
   const finishSession = (finished: QuizSession) => {
     const knowledgeQuestions = finished.questions.filter((question) => !question.isProfile);
-    const ids = knowledgeQuestions.map((question) => question.id);
+    const isDiagnosis = finished.mode === "diagnosis";
+    const ids = isDiagnosis ? [] : knowledgeQuestions.map((question) => question.id);
     const xpGain = finished.mode === "diagnosis" ? finished.correct * 5 : finished.correct * 10;
     let financeLevel = progress.financeLevel;
     let tendency = progress.tendency;
@@ -646,10 +648,10 @@ export default function Home() {
       xp: current.xp + xpGain,
       level: Math.max(current.level, Math.floor((current.xp + xpGain) / 100) + 1),
       completedIds: [...new Set([...current.completedIds, ...ids])],
-      completedLessons: finished.lesson ? [...new Set([...current.completedLessons, finished.lesson])] : current.completedLessons,
-      correct: current.correct + finished.correct,
-      attempts: current.attempts + knowledgeQuestions.length,
-      studySessions: current.studySessions + (finished.mode === "diagnosis" ? 0 : 1),
+      completedLessons: !isDiagnosis && finished.lesson ? [...new Set([...current.completedLessons, finished.lesson])] : current.completedLessons,
+      correct: current.correct + (isDiagnosis ? 0 : finished.correct),
+      attempts: current.attempts + (isDiagnosis ? 0 : knowledgeQuestions.length),
+      studySessions: current.studySessions + (isDiagnosis ? 0 : 1),
       // 연속 학습은 한국 시간 기준 하루에 한 번만 올라갑니다.
       // 진단은 학습이 아니므로 세지 않습니다.
       ...(finished.mode === "diagnosis"
@@ -780,6 +782,8 @@ export default function Home() {
 
   /** 난이도 선택 → 징검다리 지도 (경로는 하나로 이어져 있습니다) */
   const openMapAt = (difficulty: Difficulty) => {
+    const completed = completedCategoryLessonsForSolved(categoryCounts[activeCategory.name] || 0);
+    if (!isDifficultyUnlocked(difficulty, completed)) return;
     setFocusDifficulty(difficulty);
     navigate("learn");
   };
@@ -793,7 +797,7 @@ export default function Home() {
       const lessonsInBand = Math.min(4, MAX_CATEGORY_LEVEL - (from - 1));
       const total = lessonsInBand * QUESTIONS_PER_CATEGORY_LEVEL;
       const done = Math.max(0, Math.min(total, solved - (from - 1) * QUESTIONS_PER_CATEGORY_LEVEL));
-      const locked = completed < from - 1;
+      const locked = !isDifficultyUnlocked(key, completed);
       const needed = (from - 1) * QUESTIONS_PER_CATEGORY_LEVEL - solved;
       return {
         key,
@@ -898,7 +902,7 @@ export default function Home() {
           {answered ? (
             <aside className={`feedback-card ${answerCorrect ? "success" : "error"}`}>
               <h2>{question.isProfile ? "성향 선택 완료" : answerCorrect ? "정답이에요!" : `정답: ${question.answer}`}</h2>
-              <p>{question.explanation}</p>
+              <p>{friendlyExplanation(question.explanation)}</p>
               {/* 출처는 데이터에 그대로 보관하고(question.source_url·source_name) 사용자 화면에는 보여 주지 않습니다. */}
             </aside>
           ) : null}
@@ -922,9 +926,9 @@ export default function Home() {
           <h1>{result.mode === "diagnosis" ? `${progress.financeLevel} · ${progress.tendency}` : percent >= 80 ? "완벽해요, 레벨 업!" : "오늘도 한 걸음 성장!"}</h1>
           <p>{result.mode === "diagnosis" ? `수준 점수 ${result.rawScore}/54점 · 성향 점수 ${result.profileScore}/9점` : `${total}문제 중 ${result.correct}문제를 맞혔어요.`}</p>
           <div className="result-stats"><div><span>정답률</span><strong>{percent}%</strong></div><div><span>획득 XP</span><strong>+{result.mode === "diagnosis" ? result.correct * 5 : result.correct * 10}</strong></div><div><span>연속 학습</span><strong>{progress.streak}일</strong></div></div>
-          {result.weakTags.length ? <div className="weak-box"><span>다음 추천 학습</span><div>{result.weakTags.slice(0, 3).map((tag) => <button key={tag} onClick={() => { setResult(null); navigate("category"); }}>{tag}</button>)}</div></div> : null}
+          {result.weakTags.length ? <div className="weak-box"><span>다음 맞춤 학습에 반영할 취약 개념</span><div>{result.weakTags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div></div> : null}
           <button className="primary-button" onClick={() => { setResult(null); navigate("home"); }}>홈으로</button>
-          <button className="secondary-button" onClick={() => { setResult(null); startDaily(); }}>10문제 더 풀기</button>
+          {result.mode !== "diagnosis" ? <button className="secondary-button" onClick={() => { setResult(null); startDaily(); }}>10문제 더 풀기</button> : null}
         </section>
       </main>
       </TuriniAvatarProvider>
@@ -957,7 +961,7 @@ export default function Home() {
                 <button className="round-notice" aria-label="알림">♧<span /></button>
               </section>
               <section className="hero-card">
-                <div className="hero-copy"><span className="pill">오늘의 추천</span><h2>하루 10문제로<br /><em>금융 레벨 업!</em></h2><p>완료하면 최대 100 XP와 연속 학습 기록을 받아요.</p><button className="primary-button" onClick={startDaily} disabled={!questions.length}>지금 시작하기 <span>→</span></button></div>
+                <div className="hero-copy"><span className="pill">취약 개념 맞춤 추천</span><h2>내 약점부터 채우는<br /><em>맞춤 학습 10문제</em></h2><p>{progress.weakTags.length ? `${progress.weakTags.slice(0, 2).join(" · ")}부터 우선 복습해요.` : "진단 결과와 학습 기록에 맞는 문제를 추천해요."}</p><button className="primary-button" onClick={startDaily} disabled={!questions.length}>약점 학습 시작 <span>→</span></button></div>
                 <div className="hero-mascot"><TuriniAvatar scene label="나의 투리니" /><span className="spark spark-one">✦</span><span className="spark spark-two">◆</span></div>
               </section>
               <button className="future-banner" onClick={() => navigate("assets")}>
@@ -969,7 +973,7 @@ export default function Home() {
                 <article className="tendency-card"><span>투자 성향</span><h2>{progress.tendency}</h2><p>{progress.tendency === "안정형" ? "원금 보전을 중요하게 생각해요." : progress.tendency === "공격형" ? "성장을 위해 변동성을 감수해요." : "안정성과 수익의 균형을 추구해요."}</p><small className="diagnosis-complete">✓ 최초 진단 완료</small></article>
               </section>
               <section className="mission-card"><div><span className="mission-icon">🎁</span><div><p className="eyebrow">이번 주 학습 미션</p><h3>퀴즈 5회 완료하기</h3></div></div><strong>{Math.min(5, progress.studySessions)} / 5</strong><div className="progress-track"><span style={{ width: `${Math.min(100, progress.studySessions * 20)}%` }} /></div></section>
-              <section className="content-section"><div className="section-heading"><div><p className="eyebrow">빠른 학습</p><h2>어떤 주제부터 시작할까요?</h2></div><button onClick={() => navigate("category")}>전체 보기 →</button></div><div className="quick-categories">{CATEGORIES.slice(0, 3).map((category) => <button key={category.name} className={`quick-card ${category.color}`} onClick={() => startCategory(category.name)}><span>{category.icon}</span><div><strong>{category.name}</strong><small>{category.copy}</small></div><b>→</b></button>)}</div></section>
+              <section className="content-section"><div className="section-heading"><div><p className="eyebrow">빠른 학습</p><h2>어떤 주제부터 시작할까요?</h2></div><button onClick={() => navigate("category")}>전체 보기 →</button></div><div className="quick-categories">{CATEGORIES.slice(0, 3).map((category) => <button key={category.name} className={`quick-card ${category.color}`} onClick={() => openDifficulty(category.name)}><span>{category.icon}</span><div><strong>{category.name}</strong><small>{category.copy}</small></div><b>→</b></button>)}</div></section>
             </div>
           )}
 
@@ -1010,7 +1014,7 @@ export default function Home() {
               <div className="category-list">{CATEGORIES.map((category) => {
                 const solved = categoryCounts[category.name] || 0;
                 const categoryLevel = categoryLevelForSolved(solved);
-                return <article className={`category-card ${category.color}`} key={category.name}><button className="category-main" onClick={() => openDifficulty(category.name)}><span className="category-icon">{category.icon}</span><div><div className="category-title-row"><h2>{category.name}</h2><span>Lv. {categoryLevel}</span></div><p>{category.copy}</p><div className="progress-track"><span style={{ width: `${solved / 120 * 100}%` }} /></div><small>{solved} / 120문항 완료 · 난이도 고르기</small></div><b>›</b></button><div className="difficulty-row">{(["초급", "중급", "고급"] as Difficulty[]).map((difficulty) => <button key={difficulty} onClick={() => startCategory(category.name, difficulty)}>{difficulty}</button>)}</div></article>;
+                return <article className={`category-card ${category.color}`} key={category.name}><button className="category-main" onClick={() => openDifficulty(category.name)}><span className="category-icon">{category.icon}</span><div><div className="category-title-row"><h2>{category.name}</h2><span>Lv. {categoryLevel}</span></div><p>{category.copy}</p><div className="progress-track"><span style={{ width: `${solved / 120 * 100}%` }} /></div><small>{solved} / 120문항 완료 · 난이도 고르기</small></div><b>›</b></button></article>;
               })}</div>
             </div>
           )}
@@ -1074,6 +1078,7 @@ export default function Home() {
               </section>
               <section className="profile-stats"><article><span>🔥</span><strong>{progress.streak}일</strong><small>연속 학습</small></article><article><span>💎</span><strong>{progress.xp}</strong><small>총 XP</small></article><article><span>🏆</span><strong>Lv. {progress.level}</strong><small>현재 레벨</small></article><article><span>✓</span><strong>{progress.completedIds.length}</strong><small>푼 문제</small></article></section>
               <section className="card-block growth-card"><div className="section-heading"><div><p className="eyebrow">학습 현황</p><h2>나의 성장 기록</h2></div><span className="diagnosis-complete">✓ 최초 진단 완료</span></div><div className="growth-summary"><article><span>금융 수준</span><strong>{progress.financeLevel}</strong><small>진단 결과에 맞춰 학습 중</small></article><article><span>투자 성향</span><strong>{progress.tendency}</strong><small>나에게 맞는 자산배분 기준</small></article></div></section>
+              <section className="card-block weakness-card"><div className="section-heading"><div><p className="eyebrow">맞춤 학습 기준</p><h2>나의 취약 개념</h2></div></div>{progress.weakTags.length ? <><p>진단과 오답에서 찾은 개념이에요. 홈의 맞춤 학습에서 이 문제들을 먼저 추천해요.</p><div className="weakness-tags">{progress.weakTags.map((tag) => <span key={tag}>{tag}</span>)}</div><button className="primary-button" onClick={startDaily}>취약 개념 학습하기</button></> : <p>아직 발견된 취약 개념이 없어요. 진단이나 학습을 완료하면 여기에 표시돼요.</p>}</section>
               <TuriniDressUp
                 customization={progress.customization}
                 stats={avatarStats}

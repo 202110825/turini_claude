@@ -119,8 +119,9 @@ test("actual four-choice answers are not tied to one display position", () => {
       if (question.type === "4지선다") positions[question.choices.indexOf(question.answer)] += 1;
     }
   }
-  assert.ok(positions.every((count) => count > 650), `positions=${positions.join(",")}`);
-  assert.ok(Math.max(...positions) - Math.min(...positions) < 180, `positions=${positions.join(",")}`);
+  // 유형 균형 정책상 10문항 중 4지선다는 2~3개입니다. 그 안에서도 정답 위치가 고르게 섞여야 합니다.
+  assert.ok(positions.every((count) => count > 130), `positions=${positions.join(",")}`);
+  assert.ok(Math.max(...positions) - Math.min(...positions) < 90, `positions=${positions.join(",")}`);
 });
 
 test("real-data study runs keep retries 3-5 positions away across session boundaries", () => {

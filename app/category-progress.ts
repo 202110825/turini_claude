@@ -45,6 +45,12 @@ export function categoryLessonPool<
 export const BAND_START: Record<string, number> = { 초급: 1, 중급: 5, 고급: 9 };
 export const BAND_SIZE = 4;
 
+export function isDifficultyUnlocked(difficulty: string, completedLessons: number) {
+  const required = Math.max(0, (BAND_START[difficulty] ?? 1) - 1);
+  const completed = Number.isFinite(completedLessons) ? Math.max(0, Math.floor(completedLessons)) : 0;
+  return completed >= required;
+}
+
 /**
  * 그 난이도 구간에서 지금 들어가면 좋은 레슨 번호.
  * 이미 지난 레슨은 건너뛰고, 구간을 벗어나지 않습니다.
