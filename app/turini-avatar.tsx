@@ -101,7 +101,10 @@ export default function TuriniAvatar({
   const cycleKey = `${motion}|${replayKey ?? ""}`;
   const [rested, setRested] = useState({ key: cycleKey, done: false });
   if (rested.key !== cycleKey) setRested({ key: cycleKey, done: false });
-  const showRig = motion === "idle" || (rested.key === cycleKey && rested.done && !holdLast);
+  // 애니메이션 그림을 못 읽으면 캐릭터가 사라지는 대신 리그 캐릭터로 대신합니다.
+  const [atlasMissing, setAtlasMissing] = useState(false);
+  const showRig =
+    atlasMissing || motion === "idle" || (rested.key === cycleKey && rested.done && !holdLast);
 
   const body =
     showRig ? (
@@ -118,6 +121,7 @@ export default function TuriniAvatar({
         replayKey={replayKey}
         holdLast={holdLast}
         onRest={() => setRested({ key: cycleKey, done: true })}
+        onAtlasMissing={() => setAtlasMissing(true)}
         className="turini-avatar__figure"
         decorative={decorative || scene}
         customization={customization}

@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useState } from "react";
+import { CSSProperties, ChangeEvent, Dispatch, FormEvent, SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import {
   conceptKey,
   planSessionQuestions,
@@ -1181,6 +1181,13 @@ function PageTitle({ eyebrow, title, copy }: { eyebrow: string; title: string; c
   return <header className="page-title"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{copy}</p></header>;
 }
 
+/**
+ * 금액을 읽기 쉽게 적습니다.
+ * 1억 미만은 **입력한 값을 그대로** 보여 줍니다. (35,000원을 "4만 원"으로
+ * 반올림해 보여 주던 문제를 고쳤습니다)
+ * 1억 이상은 억·만 단위로 줄여 적습니다 — 미래 자산 추정치라 만원 미만은
+ * 의미가 없습니다.
+ */
 function formatWon(value: number) {
   const rounded = Math.round(value);
   const sign = rounded < 0 ? "-" : "";
@@ -1190,7 +1197,11 @@ function formatWon(value: number) {
     const man = Math.round((absolute % 100_000_000) / 10_000);
     return `${sign}${eok}억${man ? ` ${man.toLocaleString("ko-KR")}만` : ""} 원`;
   }
-  if (absolute >= 10_000) return `${sign}${Math.round(absolute / 10_000).toLocaleString("ko-KR")}만 원`;
+  if (absolute >= 10_000) {
+    const man = Math.floor(absolute / 10_000);
+    const rest = absolute % 10_000;
+    return `${sign}${man.toLocaleString("ko-KR")}만${rest ? ` ${rest.toLocaleString("ko-KR")}` : ""} 원`;
+  }
   return `${sign}${absolute.toLocaleString("ko-KR")}원`;
 }
 
@@ -1203,8 +1214,66 @@ function goalTimeLabel(months: number | null) {
   return `약 ${years}년${remainingMonths ? ` ${remainingMonths}개월` : ""} 뒤`;
 }
 
+/**
+ * 금액 입력칸.
+ *
+ * `type="number"` 를 쓰면 리액트가 "035000" 과 35000 을 같은 값으로 보고
+ * 화면을 고치지 않아, 앞에 0 이 붙은 채로 남습니다. 그래서 글자 입력칸으로
+ * 바꾸고 숫자만 받아 세 자리마다 쉼표를 넣어 보여 줍니다.
+ * 입력 도중에도 커서 자리를 지켜 줍니다.
+ */
 function MoneyField({ label, value, onChange, hint }: { label: string; value: number; onChange: (value: number) => void; hint?: string }) {
-  return <label className="planner-field"><span>{label}</span><div><input type="number" min="0" step="10000" inputMode="numeric" value={value} onChange={(event) => onChange(Math.max(0, Number(event.target.value) || 0))} /><b>원</b></div><small>{formatWon(value)}{hint ? ` · ${hint}` : ""}</small></label>;
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const caret = useRef<number | null>(null);
+
+  useEffect(() => {
+    const element = inputRef.current;
+    if (element && caret.current !== null) {
+      element.setSelectionRange(caret.current, caret.current);
+      caret.current = null;
+    }
+  });
+
+  const handle = (event: ChangeEvent<HTMLInputElement>) => {
+    const element = event.target;
+    const before = element.value.slice(0, element.selectionStart ?? 0);
+    const digitsBefore = before.replace(/[^0-9]/g, "").length;
+    const digits = element.value.replace(/[^0-9]/g, "").slice(0, 15);
+    const next = digits ? Number(digits) : 0;
+    // 쉼표가 다시 붙은 뒤에도 방금 친 숫자 뒤에 커서가 오도록 자리를 계산합니다.
+    const formatted = next.toLocaleString("ko-KR");
+    let seen = 0;
+    let position = formatted.length;
+    for (let index = 0; index < formatted.length; index += 1) {
+      if (/[0-9]/.test(formatted[index])) seen += 1;
+      if (seen === digitsBefore) {
+        position = index + 1;
+        break;
+      }
+    }
+    caret.current = digitsBefore === 0 ? 0 : position;
+    onChange(next);
+  };
+
+  return (
+    <label className="planner-field">
+      <span>{label}</span>
+      <div>
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          aria-label={`${label} (원)`}
+          value={value.toLocaleString("ko-KR")}
+          onChange={handle}
+          onFocus={(event) => event.target.select()}
+        />
+        <b>원</b>
+      </div>
+      <small>{formatWon(value)}{hint ? ` · ${hint}` : ""}</small>
+    </label>
+  );
 }
 
 function ProjectionChart({ state }: { state: WealthPlannerState }) {

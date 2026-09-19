@@ -97,15 +97,18 @@ const LABEL: Record<TuriniMotion, string> = {
  * 아틀라스를 한 번만 미리 받아 둡니다.
  * 가벼운 webp 를 먼저 쓰고, 못 읽으면 원본 png 로 내려갑니다.
  */
-let atlasPromise: Promise<string> | null = null;
-export function preloadTuriniAtlas(): Promise<string> {
+let atlasPromise: Promise<string | null> | null = null;
+export function preloadTuriniAtlas(): Promise<string | null> {
   if (typeof window === "undefined") return Promise.resolve(ATLAS);
   if (!atlasPromise) {
-    atlasPromise = new Promise<string>((resolve) => {
+    atlasPromise = new Promise<string | null>((resolve) => {
       const tryLoad = (url: string, fallback?: string) => {
         const image = new window.Image();
         image.onload = () => resolve(url);
-        image.onerror = () => (fallback ? tryLoad(fallback) : resolve(ATLAS));
+        // 둘 다 못 읽으면 null 을 돌려줍니다. 그래야 바깥에서 리그 캐릭터로
+        // 바꿔 끼울 수 있습니다. (예전에는 주소만 돌려줘서 캐릭터가 통째로
+        // 보이지 않고 그림자만 남았습니다)
+        image.onerror = () => (fallback ? tryLoad(fallback) : resolve(null));
         image.src = url;
       };
       tryLoad(ATLAS_WEBP, ATLAS);
@@ -189,6 +192,8 @@ export type TuriniSpriteProps = {
   onRest?: () => void;
   /** 착용 중인 아이템. 넘기면 프레임마다 머리를 따라 함께 움직입니다. */
   customization?: TuriniCustomization;
+  /** 아틀라스를 못 읽었을 때 알려 줍니다 (바깥에서 리그 캐릭터로 바꿔 끼웁니다) */
+  onAtlasMissing?: () => void;
 };
 
 export default function TuriniSprite({
@@ -200,6 +205,7 @@ export default function TuriniSprite({
   holdLast = false,
   onRest,
   customization,
+  onAtlasMissing,
 }: TuriniSpriteProps) {
   const [atlasUrl, setAtlasUrl] = useState<string | null>(null);
   const [anchors, setAnchors] = useState<AnchorFile | null>(null);
@@ -207,9 +213,11 @@ export default function TuriniSprite({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 콜백을 ref 에 담아 둡니다. 매 렌더마다 새 함수가 와도 재생이 끊기지 않습니다.
   const restRef = useRef(onRest);
+  const missingRef = useRef(onAtlasMissing);
   useEffect(() => {
     restRef.current = onRest;
-  }, [onRest]);
+    missingRef.current = onAtlasMissing;
+  }, [onRest, onAtlasMissing]);
 
   // 한 번의 재생 = 하나의 cycle. 요청이 바뀌면 렌더 중에 곧바로 처음으로 되돌립니다.
   // (React 가 권하는 "렌더 중 상태 맞추기" — 화면이 한 번 잘못 그려졌다가 고쳐지지 않습니다.)
@@ -222,7 +230,9 @@ export default function TuriniSprite({
   useEffect(() => {
     let alive = true;
     preloadTuriniAtlas().then((url) => {
-      if (alive) setAtlasUrl(url);
+      if (!alive) return;
+      if (url) setAtlasUrl(url);
+      else missingRef.current?.();
     });
     return () => {
       alive = false;
