@@ -167,6 +167,25 @@ export type SlotAnchor = {
   spanY?: number;
 };
 
+/**
+ * 12프레임 스프라이트(아틀라스) 위에 붙일 때 쓰는 기준점입니다.
+ * 좌표는 **아틀라스 한 칸(256px) 대비 %** 이고, idle 0번 프레임의 그림에서
+ * 이마 선·두 눈·목 시작점을 직접 재서 잡았습니다.
+ *
+ * 리그 그림과 아틀라스 그림은 머리·몸 비율이 서로 조금 달라서, 같은 기준점을
+ * 그대로 쓰면 모자가 눈까지 내려옵니다. 그래서 표를 따로 둡니다.
+ * 가방은 몸통에 붙는 물건이라 머리 추적만으로는 자리를 잡을 수 없어 제외합니다.
+ */
+export const SPRITE_ANCHOR: Record<"hat" | "glasses" | "neck", SlotAnchor> = {
+  hat: { x: 50.2, y: 29.8, gx: 0.5, gy: 1, span: 37, fit: "width" },
+  glasses: { x: 50.2, y: 37.9, gx: 0.5, gy: 0.5, span: 30, fit: "width", spanY: 13 },
+  neck: { x: 50.2, y: 56, gx: 0.5, gy: 0, span: 34, fit: "width", spanY: 32 },
+};
+
+/** 스프라이트 위에서 액세서리가 붙는 슬롯 */
+export const SPRITE_SLOTS = ["neck", "glasses", "hat"] as const;
+export type SpriteSlot = (typeof SPRITE_SLOTS)[number];
+
 export const SLOT_ANCHOR: Record<AvatarSlot, SlotAnchor> = {
   // 이마 선(눈 위)에 모자 아래쪽 가운데를 맞춥니다.
   hat: { x: 49.7, y: 32.1, gx: 0.5, gy: 1, span: 39.2, fit: "width" },
@@ -202,9 +221,16 @@ export type Placement = { left: number; top: number; size: number };
  * 아이템 한 개의 실제 배치를 구합니다.
  * 그림 자체를 기준점에 맞추므로, 칸 여백이 서로 다른 아이템도 같은 자리에 옵니다.
  */
-export function placementFor(item: { id: string; slot: AvatarSlot }): Placement {
+export function placementFor(
+  item: { id: string; slot: AvatarSlot },
+  /** "rig" = 분리 파츠 캐릭터, "sprite" = 12프레임 아틀라스 */
+  space: "rig" | "sprite" = "rig",
+): Placement {
   if (item.slot === "background") return { left: 0, top: 0, size: 100 };
-  const anchor = SLOT_ANCHOR[item.slot];
+  const anchor =
+    space === "sprite" && item.slot in SPRITE_ANCHOR
+      ? SPRITE_ANCHOR[item.slot as SpriteSlot]
+      : SLOT_ANCHOR[item.slot];
 
   const [x0, y0, x1, y1] = contentBox(item.id);
   const boxWidth = Math.max(0.01, x1 - x0);

@@ -32,9 +32,11 @@ import {
  * - `motion="idle"` : 레이어 리그로 그립니다. 저장한 모자·안경·목장식·가방이
  *   모두 반영되고, 고개·몸통이 움직이면 액세서리도 함께 움직입니다.
  * - 그 밖의 동작(생각·정답·오답·축하·읽기) : 미리 만들어 둔 12프레임 스프라이트를
- *   씁니다. 이 그림들은 상황 소품(체크 팻말·X 팻말·책)을 손에 들고 있어서
- *   영구 액세서리를 함께 얹지 않습니다. 동작이 끝나면 착용 상태가 반영된
- *   리그 캐릭터로 돌아옵니다.
+ *   씁니다. 프레임마다 머리가 놓인 자리를 적어 둔 표
+ *   (`animations/turini-frame-anchors.json`)를 읽어, 모자·안경·목장식이
+ *   고개를 그대로 따라갑니다. 손에 드는 상황 소품(체크 팻말·X 팻말·책)과
+ *   자리가 겹치는 가방은 이 동작에서 빠집니다.
+ *   동작이 끝나면 가방까지 모두 반영된 리그 캐릭터로 돌아옵니다.
  *
  * 화면마다 따로 이미지를 불러오지 않으므로, 꾸미기에서 저장하면 홈·마이페이지·
  * 학습 화면이 한꺼번에 바뀝니다.
@@ -118,6 +120,7 @@ export default function TuriniAvatar({
         onRest={() => setRested({ key: cycleKey, done: true })}
         className="turini-avatar__figure"
         decorative={decorative || scene}
+        customization={customization}
       />
     );
 

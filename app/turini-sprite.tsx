@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  SPRITE_SLOTS,
+  assetPath,
+  assetPathWebp,
+  findItem,
+  placementFor,
+  type AvatarItem,
+  type TuriniCustomization,
+} from "./avatar-items";
 
 /**
  * 투리니 12프레임 스프라이트
@@ -18,6 +27,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 export type TuriniMotion = "idle" | "thinking" | "correct" | "wrong" | "celebrate" | "reading";
 
 const ATLAS = "/assets/turini/animations/turini-animation-atlas-12f.png";
+const FRAME_ANCHORS = "/assets/turini/animations/turini-frame-anchors.json";
 const ATLAS_WEBP = "/assets/turini/optimized/animations/turini-animation-atlas-12f.webp";
 
 const FRAMES = 12;
@@ -60,6 +70,20 @@ const STILL: Record<TuriniMotion, number> = {
   reading: 0,
 };
 
+/**
+ * 동작마다 붙일 수 있는 액세서리.
+ * 정답·오답·읽기는 가슴 앞에 팻말이나 책을 들고 있어서, 목 액세서리를 얹으면
+ * 팻말을 가립니다. 그래서 이 세 동작에서는 머리 쪽만 붙입니다.
+ */
+const SLOTS_FOR_MOTION: Record<TuriniMotion, readonly string[]> = {
+  idle: SPRITE_SLOTS,
+  thinking: SPRITE_SLOTS,
+  celebrate: SPRITE_SLOTS,
+  correct: ["glasses", "hat"],
+  wrong: ["glasses", "hat"],
+  reading: ["glasses", "hat"],
+};
+
 const LABEL: Record<TuriniMotion, string> = {
   idle: "투리니 기린 캐릭터",
   thinking: "생각하는 투리니",
@@ -90,6 +114,54 @@ export function preloadTuriniAtlas(): Promise<string> {
   return atlasPromise;
 }
 
+/**
+ * 프레임마다 머리가 어디에 얼마나 크게 그려졌는지 적어 둔 표입니다.
+ * idle 0번 프레임을 기준(1.0)으로 템플릿 정합해서 구했습니다.
+ * `[가로중심, 세로중심, 배율, 기울기(도)]` — 단위는 한 칸(256px) 픽셀입니다.
+ */
+type FrameAnchor = [number, number, number, number];
+type AnchorFile = {
+  cell: number;
+  templateCenter: [number, number];
+  frames: Record<string, FrameAnchor[]>;
+};
+
+let anchorPromise: Promise<AnchorFile | null> | null = null;
+export function loadFrameAnchors(): Promise<AnchorFile | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if (!anchorPromise) {
+    anchorPromise = fetch(FRAME_ANCHORS)
+      .then((response) => (response.ok ? response.json() : null))
+      .catch(() => null);
+  }
+  return anchorPromise;
+}
+
+/** 액세서리 한 개 — 프레임 좌표계(한 칸 256px) 안에 놓습니다 */
+function SpritePiece({ item }: { item: AvatarItem }) {
+  const [failed, setFailed] = useState(false);
+  const place = placementFor(item, "sprite");
+  if (failed) return null;
+  return (
+    <span
+      className="turini-sprite__piece"
+      data-slot={item.slot}
+      style={{ left: `${place.left}%`, top: `${place.top}%`, width: `${place.size}%` }}
+    >
+      <picture>
+        <source srcSet={assetPathWebp(item.slot, item.file)} type="image/webp" />
+        <img
+          src={assetPath(item.slot, item.file)}
+          alt=""
+          draggable={false}
+          decoding="async"
+          onError={() => setFailed(true)}
+        />
+      </picture>
+    </span>
+  );
+}
+
 function framePosition(motion: TuriniMotion, frame: number) {
   const x = (frame * 100) / (FRAMES - 1);
   const y = (ROW[motion] * 100) / (ROWS - 1);
@@ -115,6 +187,8 @@ export type TuriniSpriteProps = {
    * 바깥(TuriniAvatar)에서 착용 상태가 반영된 리그 캐릭터로 바꿔 끼울 때 씁니다.
    */
   onRest?: () => void;
+  /** 착용 중인 아이템. 넘기면 프레임마다 머리를 따라 함께 움직입니다. */
+  customization?: TuriniCustomization;
 };
 
 export default function TuriniSprite({
@@ -125,8 +199,10 @@ export default function TuriniSprite({
   restMotion = "idle",
   holdLast = false,
   onRest,
+  customization,
 }: TuriniSpriteProps) {
   const [atlasUrl, setAtlasUrl] = useState<string | null>(null);
+  const [anchors, setAnchors] = useState<AnchorFile | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 콜백을 ref 에 담아 둡니다. 매 렌더마다 새 함수가 와도 재생이 끊기지 않습니다.
@@ -152,6 +228,19 @@ export default function TuriniSprite({
       alive = false;
     };
   }, []);
+
+  // 액세서리를 쓸 때만 프레임 표를 받아 옵니다.
+  const wantsPieces = Boolean(customization);
+  useEffect(() => {
+    if (!wantsPieces) return;
+    let alive = true;
+    loadFrameAnchors().then((data) => {
+      if (alive) setAnchors(data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [wantsPieces]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -210,6 +299,29 @@ export default function TuriniSprite({
     ? ({ "aria-hidden": true } as const)
     : ({ role: "img", "aria-label": LABEL[shownMotion] } as const);
 
+  // 이 프레임에서 머리가 놓인 자리. 액세서리를 통째로 같은 자리로 옮겨 붙입니다.
+  const anchor = anchors?.frames?.[shownMotion]?.[shownFrame];
+  const allowed = SLOTS_FOR_MOTION[shownMotion];
+  const worn = customization
+    ? SPRITE_SLOTS.filter((slot) => allowed.includes(slot))
+        .map((slot) => findItem(customization[slot]))
+        .filter((entry): entry is AvatarItem => Boolean(entry))
+    : [];
+
+  let headStyle: CSSProperties | undefined;
+  if (anchor && anchors) {
+    const cell = anchors.cell || 256;
+    const [originX, originY] = anchors.templateCenter;
+    const [cx, cy, scale, rotate] = anchor;
+    headStyle = {
+      left: `${((cx - scale * originX) / cell) * 100}%`,
+      top: `${((cy - scale * originY) / cell) * 100}%`,
+      width: `${scale * 100}%`,
+      transformOrigin: `${(originX / cell) * 100}% ${(originY / cell) * 100}%`,
+      transform: rotate ? `rotate(${rotate}deg)` : undefined,
+    };
+  }
+
   return (
     <span
       className={`turini-sprite ${className}`.trim()}
@@ -226,6 +338,15 @@ export default function TuriniSprite({
           } as CSSProperties
         }
       />
+      {worn.length && headStyle ? (
+        <span className="turini-sprite__worn" aria-hidden="true">
+          <span className="turini-sprite__head" style={headStyle}>
+            {worn.map((entry) => (
+              <SpritePiece key={entry.id} item={entry} />
+            ))}
+          </span>
+        </span>
+      ) : null}
     </span>
   );
 }
