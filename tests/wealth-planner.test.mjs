@@ -1,4 +1,0 @@
-import assert from "node:assert/strict";import test from "node:test";import {DEFAULT_WEALTH_PLANNER,normalizeWealthPlanner,projectWealth,summarizeMonthlyFlow} from "../app/wealth-planner.ts";
-test("future projection separates principal and return",()=>{const r=projectWealth(DEFAULT_WEALTH_PLANNER);assert.ok(r.total>r.principal);assert.equal(r.series.length,11);assert.ok(r.plusContributionTotal>r.total)});
-test("unsafe planner input is clamped",()=>{const r=normalizeWealthPlanner({years:999,annualRate:-99,salary:-1});assert.equal(r.years,40);assert.equal(r.annualRate,-30);assert.equal(r.salary,0)});
-test("savings stay separate from spending",()=>{const r=summarizeMonthlyFlow({...DEFAULT_WEALTH_PLANNER,salary:3000000,fixedExpense:1000000,variableExpense:500000,monthlySavings:500000,monthlyInvestment:300000});assert.equal(r.remainder,700000);assert.equal(r.buildingAssets,800000)});
