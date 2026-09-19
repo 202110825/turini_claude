@@ -18,6 +18,7 @@ import {
   itemsForSlot,
   normalizeCustomization,
   placementFor,
+  SPRITE_ANCHOR,
   remainingLabel,
   requirementLabel,
   requirementProgress,
@@ -28,6 +29,8 @@ const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "
 const avatarSource = await readFile(new URL("../app/turini-avatar.tsx", import.meta.url), "utf8");
 const rigSource = await readFile(new URL("../app/turini-rig.tsx", import.meta.url), "utf8");
 const rigStyle = await readFile(new URL("../app/turini-rig.css", import.meta.url), "utf8");
+const spriteSource = await readFile(new URL("../app/turini-sprite.tsx", import.meta.url), "utf8");
+const spriteStyle = await readFile(new URL("../app/turini-sprite.css", import.meta.url), "utf8");
 
 const publicPath = (url) => new URL(`../public${url}`, import.meta.url);
 
@@ -280,4 +283,73 @@ test("결제 기능은 들어 있지 않다", () => {
   for (const source of [avatarSource, rigSource, pageSource]) {
     assert.doesNotMatch(source, /결제|구매하기|price|checkout|payment/i);
   }
+});
+
+/* ── 애니메이션 프레임 위의 액세서리 ──────────────────────── */
+
+test("프레임별 머리 기준점 표가 72프레임 모두 들어 있다", async () => {
+  const anchors = JSON.parse(
+    await readFile(
+      new URL("../public/assets/turini/animations/turini-frame-anchors.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.equal(anchors.cell, 256);
+  assert.equal(anchors.templateCenter.length, 2);
+  const motions = ["idle", "thinking", "correct", "wrong", "celebrate", "reading"];
+  let total = 0;
+  for (const motion of motions) {
+    const frames = anchors.frames[motion];
+    assert.ok(Array.isArray(frames), `${motion} 표가 없습니다`);
+    assert.equal(frames.length, 12, `${motion} 프레임 수가 12가 아닙니다`);
+    for (const [cx, cy, scale, rotate] of frames) {
+      // 머리는 칸 안에 있어야 하고, 배율·기울기도 상식 범위여야 합니다.
+      assert.ok(cx > 40 && cx < 216, `${motion} 가로중심 ${cx} 이 칸을 벗어납니다`);
+      assert.ok(cy > 10 && cy < 180, `${motion} 세로중심 ${cy} 이 칸을 벗어납니다`);
+      assert.ok(scale > 0.6 && scale < 1.6, `${motion} 배율 ${scale} 이 지나칩니다`);
+      assert.ok(Math.abs(rotate) <= 25, `${motion} 기울기 ${rotate} 가 지나칩니다`);
+      total += 1;
+    }
+    // 같은 동작 안에서 머리 크기가 갑자기 튀면 안 됩니다 (프레임 사이 20% 이내)
+    for (let i = 0; i < frames.length; i += 1) {
+      const a = frames[i][2];
+      const b = frames[(i + 1) % frames.length][2];
+      assert.ok(Math.abs(a - b) / a < 0.2, `${motion} ${i}→${i + 1} 프레임에서 머리 크기가 튑니다`);
+    }
+  }
+  assert.equal(total, 72);
+});
+
+test("스프라이트용 기준점은 리그용과 따로 관리한다", () => {
+  // 두 그림의 비율이 달라 같은 값을 쓰면 모자가 눈까지 내려옵니다.
+  assert.ok(SPRITE_ANCHOR.hat.span !== SLOT_ANCHOR.hat.span);
+  for (const slot of ["hat", "glasses", "neck"]) {
+    const anchor = SPRITE_ANCHOR[slot];
+    assert.ok(anchor.x > 40 && anchor.x < 60);
+    assert.ok(anchor.y > 20 && anchor.y < 70);
+    assert.ok(anchor.span > 10 && anchor.span < 60);
+  }
+  // 같은 아이템이라도 공간에 따라 다른 자리에 놓입니다.
+  const cap = findItem("hat:green_cap");
+  assert.notDeepEqual(placementFor(cap, "rig"), placementFor(cap, "sprite"));
+});
+
+test("정답·오답·읽기 동작에서는 팻말을 가리지 않게 목 액세서리를 뺀다", () => {
+  const source = spriteSource;
+  assert.match(source, /SLOTS_FOR_MOTION/);
+  assert.match(source, /correct: \["glasses", "hat"\]/);
+  assert.match(source, /wrong: \["glasses", "hat"\]/);
+  assert.match(source, /reading: \["glasses", "hat"\]/);
+  // 대기·생각·축하에서는 목 액세서리도 나옵니다.
+  assert.match(source, /idle: SPRITE_SLOTS/);
+  assert.match(source, /thinking: SPRITE_SLOTS/);
+  assert.match(source, /celebrate: SPRITE_SLOTS/);
+});
+
+test("액세서리 묶음은 프레임 기준점을 그대로 따라간다", () => {
+  // 화면에 따로 고정하지 않고, 표에서 읽은 값으로 옮기고·키우고·기울입니다.
+  assert.match(spriteSource, /anchors\?\.frames\?\.\[shownMotion\]\?\.\[shownFrame\]/);
+  assert.match(spriteSource, /transformOrigin/);
+  assert.match(spriteSource, /rotate\(\$\{rotate\}deg\)/);
+  assert.match(spriteStyle, /\.turini-sprite__head/);
 });
