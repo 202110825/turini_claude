@@ -64,21 +64,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .progress-track { height: 9px; border-radius: 99px; background: #e7ece8; overflow: hidden; box-shadow: inset 0 1px 2px rgba(30,60,40,.08); }
 .progress-track > span { display: block; height: 100%; min-width: 0; background: var(--green); border-radius: inherit; transition: width .35s ease; box-shadow: inset 0 2px 0 rgba(255,255,255,.3); }
 
-.mascot { display: inline-block; flex: 0 0 auto; background-image: url('/assets/turini-mascot-sheet.png'); background-repeat: no-repeat; background-color: transparent; }
-.mascot-small { width: 88px; height: 92px; background-size: 911px 729px; }
-.mascot-medium { width: 130px; height: 150px; background-size: 911px 729px; }
-.mascot-large { width: 170px; height: 190px; background-size: 911px 729px; }
-.mascot-wave { background-position: -290px -5px; }
-.mascot-reading { background-position: -613px -5px; }
-.mascot-coach { background-position: -216px -530px; }
-.mascot-correct { background-position: -48px -350px; }
-.mascot-wrong { background-position: -222px -350px; }
-.mascot-celebrate { background-position: -395px -350px; }
-.mascot-study { background-position: -16px -539px; }
-.character-art { display: block; flex: 0 0 auto; background-repeat: no-repeat; background-position: center; background-size: contain; }
-.character-wave { background-image: url('/assets/turini-wave-transparent.png'); }
-.character-reading { background-image: url('/assets/turini-reading-transparent.png'); }
-.character-thinking { background-image: url('/assets/turini-thinking-transparent.png'); }
+/* 옛 통짜 스프라이트(.mascot, .character-*)는 화면에서 더 이상 쓰지 않아 규칙과 그림 파일을 함께 걷어냈습니다.
+   지금 캐릭터는 app/turini-avatar.tsx 하나로 그립니다. */
 
 .welcome-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
 .welcome-row h1 { margin: 0; font-size: 27px; letter-spacing: -1px; }

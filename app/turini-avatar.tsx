@@ -1,266 +1,214 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
-import Turini from "./turini-character";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import TuriniRig from "./turini-rig";
+import TuriniSprite, { type TuriniMotion } from "./turini-sprite";
 import {
-  AVATAR_ANCHORS,
   AVATAR_ITEMS,
-  AVATAR_LAYOUT,
+  DEFAULT_CUSTOMIZATION,
   AVATAR_SLOTS,
-  DEFAULT_AVATAR,
+  TURNAROUND,
+  TURNAROUND_WEBP,
+  VIEW_LABEL,
+  assetPath,
+  assetPathWebp,
   findItem,
   isItemUnlocked,
   itemsForSlot,
+  remainingLabel,
   requirementLabel,
   requirementProgress,
-  slotRect,
+  wornPreview,
   type AvatarItem,
   type AvatarSlot,
   type AvatarStats,
-  type TuriniAvatar,
+  type TurniView,
+  type TuriniCustomization,
 } from "./avatar-items";
 
 /**
- * 나만의 투리니 꾸미기
+ * 앱 전체가 쓰는 하나의 캐릭터 컴포넌트.
  *
- * 무대는 정사각형이고 액세서리 위치는 전부 % 좌표라, 화면 크기가 바뀌어도
- * 캐릭터와 액세서리가 같은 비율로 같이 커지고 작아집니다.
- * 기준점은 avatar-items.ts 의 AVATAR_ANCHORS 한 곳에서만 관리합니다.
+ * - `motion="idle"` : 레이어 리그로 그립니다. 저장한 모자·안경·목장식·가방이
+ *   모두 반영되고, 고개·몸통이 움직이면 액세서리도 함께 움직입니다.
+ * - 그 밖의 동작(생각·정답·오답·축하·읽기) : 미리 만들어 둔 12프레임 스프라이트를
+ *   씁니다. 이 그림들은 상황 소품(체크 팻말·X 팻말·책)을 손에 들고 있어서
+ *   영구 액세서리를 함께 얹지 않습니다. 동작이 끝나면 착용 상태가 반영된
+ *   리그 캐릭터로 돌아옵니다.
+ *
+ * 화면마다 따로 이미지를 불러오지 않으므로, 꾸미기에서 저장하면 홈·마이페이지·
+ * 학습 화면이 한꺼번에 바뀝니다.
  */
 
-/* ──────────────────────────────────────────────────────────────
-   임시 도형
-   실제 액세서리 이미지가 아직 없어서, 기준점과 크기를 눈으로 확인하기 위한
-   단순 도형입니다. 최종 그림이 아니며 화면에도 '개발 확인용' 이라고 표시됩니다.
-   ────────────────────────────────────────────────────────────── */
+/**
+ * 저장된 꾸미기 상태를 앱 전체가 공유합니다.
+ * 화면마다 따로 넘기지 않아도 같은 값을 보게 되므로, 어떤 화면도
+ * 혼자만 기본 캐릭터로 돌아가는 일이 없습니다.
+ */
+const CustomizationContext = createContext<TuriniCustomization>(DEFAULT_CUSTOMIZATION);
 
-function PlaceholderArt({ shape, tint }: { shape: string; tint: string }) {
-  const stroke = "rgba(20, 38, 28, .5)";
-  const common = { fill: tint, stroke, strokeWidth: 2.4, strokeLinejoin: "round" as const };
-
-  switch (shape) {
-    case "beanie":
-      return (
-        <svg viewBox="0 0 100 54" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
-          <path d="M14 42C14 22 30 8 50 8s36 14 36 34z" {...common} />
-          <rect x="8" y="40" width="84" height="11" rx="5.5" {...common} />
-        </svg>
-      );
-    case "cap":
-      return (
-        <svg viewBox="0 0 100 54" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
-          <path d="M18 40C18 21 32 9 50 9s32 12 32 31z" {...common} />
-          <path d="M18 40h74c0 7-6 11-16 11H18z" {...common} />
-        </svg>
-      );
-    case "fedora":
-      return (
-        <svg viewBox="0 0 100 54" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
-          <path d="M26 38V22c0-9 10-14 24-14s24 5 24 14v16z" {...common} />
-          <ellipse cx="50" cy="42" rx="46" ry="9" {...common} />
-          <rect x="26" y="30" width="48" height="8" fill="rgba(0,0,0,.22)" />
-        </svg>
-      );
-    case "graduate":
-      return (
-        <svg viewBox="0 0 100 54" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
-          <path d="M30 42V28h40v14z" {...common} />
-          <path d="M50 8 96 26 50 42 4 26z" {...common} />
-          <path d="M92 28v16" fill="none" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
-          <circle cx="92" cy="46" r="4" {...common} />
-        </svg>
-      );
-    case "round":
-      return (
-        <svg viewBox="0 0 100 40" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <circle cx="26" cy="20" r="15" fill="rgba(255,255,255,.35)" stroke={tint} strokeWidth="4.5" />
-          <circle cx="74" cy="20" r="15" fill="rgba(255,255,255,.35)" stroke={tint} strokeWidth="4.5" />
-          <path d="M41 20h18" fill="none" stroke={tint} strokeWidth="4.5" strokeLinecap="round" />
-        </svg>
-      );
-    case "square":
-      return (
-        <svg viewBox="0 0 100 40" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <rect x="9" y="7" width="33" height="26" rx="7" fill="rgba(255,255,255,.35)" stroke={tint} strokeWidth="4.5" />
-          <rect x="58" y="7" width="33" height="26" rx="7" fill="rgba(255,255,255,.35)" stroke={tint} strokeWidth="4.5" />
-          <path d="M42 20h16" fill="none" stroke={tint} strokeWidth="4.5" strokeLinecap="round" />
-        </svg>
-      );
-    case "sun":
-      return (
-        <svg viewBox="0 0 100 40" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <path d="M8 12h36c0 16-6 22-18 22S8 28 8 12z" fill={tint} stroke={stroke} strokeWidth="2.4" />
-          <path d="M56 12h36c0 16-6 22-18 22S56 28 56 12z" fill={tint} stroke={stroke} strokeWidth="2.4" />
-          <path d="M44 15h12" fill="none" stroke={tint} strokeWidth="5" strokeLinecap="round" />
-        </svg>
-      );
-    case "scarf":
-      return (
-        <svg viewBox="0 0 100 28" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <rect x="4" y="3" width="92" height="13" rx="6.5" {...common} />
-          <path d="M58 13h17v13H58z" {...common} />
-          <path d="M16 9h68" fill="none" stroke="rgba(255,255,255,.45)" strokeWidth="2.6" />
-        </svg>
-      );
-    case "tie":
-      return (
-        <svg viewBox="0 0 100 28" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <rect x="8" y="2" width="84" height="9" rx="4.5" fill="rgba(255,255,255,.6)" stroke={stroke} strokeWidth="2" />
-          <path d="M42 2h16l5 8-13 5-13-5z" {...common} />
-          <path d="M45 15h10l4 11H41z" {...common} />
-        </svg>
-      );
-    case "medal":
-      return (
-        <svg viewBox="0 0 100 28" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <path d="M36 2 50 15 64 2" fill="none" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
-          <circle cx="50" cy="19" r="8.5" {...common} />
-          <circle cx="50" cy="19" r="3.4" fill="rgba(255,255,255,.6)" />
-        </svg>
-      );
-    case "satchel":
-      return (
-        <svg viewBox="0 0 100 108" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <rect x="12" y="34" width="76" height="62" rx="12" {...common} />
-          <path d="M12 46c0-14 10-24 24-24h28c14 0 24 10 24 24z" {...common} />
-          <rect x="40" y="52" width="20" height="13" rx="5" fill="rgba(255,255,255,.55)" stroke={stroke} strokeWidth="2" />
-          <path d="M22 34 34 6" fill="none" stroke={stroke} strokeWidth="5" strokeLinecap="round" />
-        </svg>
-      );
-    case "shield":
-      return (
-        <svg viewBox="0 0 100 108" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <path d="M50 18 88 32v30c0 20-16 32-38 40-22-8-38-20-38-40V32z" {...common} />
-          <path d="M50 38v34" fill="none" stroke="rgba(255,255,255,.6)" strokeWidth="5" strokeLinecap="round" />
-          <path d="M33 55h34" fill="none" stroke="rgba(255,255,255,.6)" strokeWidth="5" strokeLinecap="round" />
-        </svg>
-      );
-    case "vault":
-      return (
-        <svg viewBox="0 0 100 108" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <rect x="12" y="24" width="76" height="72" rx="10" {...common} />
-          <circle cx="50" cy="60" r="18" fill="rgba(255,255,255,.4)" stroke={stroke} strokeWidth="2.6" />
-          <path d="M50 44v32M34 60h32" fill="none" stroke={stroke} strokeWidth="3.2" strokeLinecap="round" />
-          <path d="M24 24 34 6" fill="none" stroke={stroke} strokeWidth="5" strokeLinecap="round" />
-        </svg>
-      );
-    case "coin":
-      return (
-        <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <circle cx="50" cy="52" r="38" {...common} />
-          <circle cx="50" cy="52" r="27" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth="4" />
-          <path d="M36 42l14 22 14-22M34 56h32" fill="none" stroke={stroke} strokeWidth="5" strokeLinecap="round" />
-        </svg>
-      );
-    case "chart":
-      return (
-        <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <rect x="10" y="14" width="80" height="72" rx="10" fill="rgba(255,255,255,.75)" stroke={stroke} strokeWidth="2.6" />
-          <path d="M22 70l18-18 14 12 24-28" fill="none" stroke={tint} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="78" cy="36" r="6" fill={tint} />
-        </svg>
-      );
-    case "piggy":
-      return (
-        <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <ellipse cx="50" cy="56" rx="36" ry="28" {...common} />
-          <ellipse cx="18" cy="58" rx="11" ry="9" {...common} />
-          <path d="M34 30l12 8-16 4z" {...common} />
-          <rect x="44" y="34" width="20" height="5" rx="2.5" fill={stroke} />
-          <circle cx="28" cy="50" r="3.2" fill={stroke} />
-        </svg>
-      );
-    default:
-      return (
-        <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <rect x="16" y="16" width="68" height="68" rx="14" {...common} />
-        </svg>
-      );
-  }
-}
-
-function SceneArt({ tint }: { tint: string }) {
-  return (
-    <span
-      className="turini-dress__scene-art"
-      style={{ ["--scene-tint" as string]: tint } as CSSProperties}
-      aria-hidden="true"
-    />
-  );
-}
-
-function ItemArt({ item }: { item: AvatarItem }) {
-  if (item.slot === "scene") return <SceneArt tint={item.tint} />;
-  return <PlaceholderArt shape={item.shape ?? "block"} tint={item.tint} />;
-}
-
-/* ──────────────────────────────────────────────────────────────
-   무대 — 캐릭터 + 액세서리
-   ────────────────────────────────────────────────────────────── */
-
-export function TuriniStage({
-  avatar,
-  className = "",
-  showAnchors = false,
+export function TuriniAvatarProvider({
+  customization,
+  children,
 }: {
-  avatar: TuriniAvatar;
-  className?: string;
-  /** 개발 확인용 — 기준점을 눈으로 보고 싶을 때 */
-  showAnchors?: boolean;
+  customization: TuriniCustomization;
+  children: ReactNode;
 }) {
-  const scene = findItem(avatar.scene);
-  const worn = AVATAR_SLOTS.map(({ key }) => findItem(avatar[key])).filter(
-    (item): item is AvatarItem => Boolean(item) && item!.slot !== "scene",
+  return (
+    <CustomizationContext.Provider value={customization}>{children}</CustomizationContext.Provider>
   );
+}
+
+export function useCustomization() {
+  return useContext(CustomizationContext);
+}
+
+export type TuriniAvatarProps = {
+  /** 생략하면 공통 저장소(Provider)의 값을 씁니다 */
+  customization?: TuriniCustomization;
+  motion?: TuriniMotion;
+  /** 값이 바뀌면 같은 동작이라도 처음부터 다시 재생합니다 */
+  replayKey?: string | number;
+  /** 1회 재생이 끝나도 마지막 프레임을 유지합니다 (정답·오답 팻말) */
+  holdLast?: boolean;
+  className?: string;
+  label?: string;
+  decorative?: boolean;
+  /** 배경 그림까지 함께 보여 줄지 (홈·마이페이지·꾸미기에서만 켭니다) */
+  scene?: boolean;
+  /** 숨쉬기·깜박임 */
+  animated?: boolean;
+};
+
+export default function TuriniAvatar({
+  customization: given,
+  motion = "idle",
+  replayKey,
+  holdLast = false,
+  className = "",
+  label = "나의 투리니",
+  decorative = false,
+  scene = false,
+  animated = true,
+}: TuriniAvatarProps) {
+  const shared = useCustomization();
+  const customization = given ?? shared;
+  const background = scene ? findItem(customization.background) : null;
+
+  // 1회 재생(정답·오답·축하)이 끝나면 착용 상태가 반영된 리그 캐릭터로 돌아옵니다.
+  const cycleKey = `${motion}|${replayKey ?? ""}`;
+  const [rested, setRested] = useState({ key: cycleKey, done: false });
+  if (rested.key !== cycleKey) setRested({ key: cycleKey, done: false });
+  const showRig = motion === "idle" || (rested.key === cycleKey && rested.done && !holdLast);
+
+  const body =
+    showRig ? (
+      <TuriniRig
+        customization={customization}
+        animated={animated}
+        className="turini-avatar__figure"
+        label={label}
+        decorative={decorative || scene}
+      />
+    ) : (
+      <TuriniSprite
+        motion={motion}
+        replayKey={replayKey}
+        holdLast={holdLast}
+        onRest={() => setRested({ key: cycleKey, done: true })}
+        className="turini-avatar__figure"
+        decorative={decorative || scene}
+      />
+    );
+
+  if (!background) return <span className={`turini-avatar ${className}`.trim()}>{body}</span>;
 
   return (
-    <div className={`turini-dress__stage ${className}`.trim()}>
-      {scene ? (
-        <span
-          className="turini-dress__scene"
-          style={{ ["--scene-tint" as string]: scene.tint } as CSSProperties}
-          aria-hidden="true"
-        />
-      ) : null}
-
-      <div className="turini-dress__figure">
-        <Turini state="idle" className="turini-dress__character" frozen decorative />
-        {worn.map((item) => {
-          const rect = slotRect(item.slot);
-          return (
-            <span
-              key={item.id}
-              className="turini-dress__piece"
-              data-slot={item.slot}
-              style={
-                {
-                  left: `${rect.left}%`,
-                  top: `${rect.top}%`,
-                  width: `${rect.width}%`,
-                  height: `${rect.height}%`,
-                  zIndex: AVATAR_LAYOUT[item.slot].layer,
-                } as CSSProperties
-              }
-              aria-hidden="true"
-            >
-              <ItemArt item={item} />
-            </span>
-          );
-        })}
-
-        {showAnchors
-          ? Object.entries(AVATAR_ANCHORS).map(([key, point]) => (
-              <span
-                key={key}
-                className="turini-dress__anchor"
-                style={{ left: `${point.x}%`, top: `${point.y}%` } as CSSProperties}
-                data-anchor={key}
-                aria-hidden="true"
-              />
-            ))
-          : null}
-      </div>
+    <div className={`turini-avatar turini-avatar--scene ${className}`.trim()} role="img" aria-label={label}>
+      <span className="turini-avatar__background" aria-hidden="true">
+        <ItemImage item={background} eager />
+      </span>
+      {body}
     </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
+   이미지 한 장 — webp 를 먼저 쓰고, 없으면 원본 png, 그것도 없으면 조용히 비웁니다.
+   ────────────────────────────────────────────────────────────── */
+
+function ItemImage({
+  item,
+  alt = "",
+  eager = false,
+  className = "",
+}: {
+  item: AvatarItem;
+  alt?: string;
+  eager?: boolean;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <span className={`turini-dress__missing ${className}`.trim()} aria-hidden="true" />;
+  }
+  return (
+    <picture>
+      <source srcSet={assetPathWebp(item.slot, item.file)} type="image/webp" />
+      <img
+        className={className}
+        src={assetPath(item.slot, item.file)}
+        alt={alt}
+        loading={eager ? "eager" : "lazy"}
+        decoding={eager ? "sync" : "async"}
+        draggable={false}
+        onError={() => setFailed(true)}
+      />
+    </picture>
+  );
+}
+
+/** 목록 썸네일 — 그 아이템 하나를 실제로 착용한 완성본을 씁니다 */
+function WornThumb({ item }: { item: AvatarItem }) {
+  const [failed, setFailed] = useState(false);
+  const worn = wornPreview(item);
+  if (!worn || failed) return <ItemImage item={item} />;
+  return (
+    <picture>
+      <source srcSet={worn.thumb} type="image/webp" />
+      <img src={worn.png} alt="" loading="lazy" decoding="async" draggable={false} onError={() => setFailed(true)} />
+    </picture>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
+   회전 미리보기 — 가방은 등 뒤라서 정면으로는 잘 보이지 않습니다.
+   ────────────────────────────────────────────────────────────── */
+
+function TurnaroundView({ view, bag }: { view: TurniView; bag: AvatarItem | null }) {
+  const [failed, setFailed] = useState(false);
+  // 3/4 후면은 "그 가방 하나를 멘" 완성본이 있으면 그걸 씁니다.
+  const worn = view === "three-quarter-rear" && bag ? wornPreview(bag) : null;
+  if (worn && !failed) {
+    return (
+      <picture className="turini-dress__turn">
+        <source srcSet={worn.webp} type="image/webp" />
+        <img src={worn.png} alt="" decoding="async" draggable={false} onError={() => setFailed(true)} />
+      </picture>
+    );
+  }
+  return (
+    <span className="turini-dress__turn">
+      <picture>
+        <source srcSet={TURNAROUND_WEBP[view]} type="image/webp" />
+        <img src={TURNAROUND[view]} alt="" decoding="async" draggable={false} />
+      </picture>
+      {bag && view === "back" ? (
+        <span className="turini-dress__turn-bag">
+          <ItemImage item={bag} eager />
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -268,209 +216,230 @@ export function TuriniStage({
    꾸미기 화면
    ────────────────────────────────────────────────────────────── */
 
-type Filter = "all" | "owned" | "locked";
-
-const FILTERS: { key: Filter; name: string }[] = [
-  { key: "all", name: "전체" },
-  { key: "owned", name: "보유" },
-  { key: "locked", name: "잠김" },
-];
-
-export default function TuriniDressUp({
-  avatar,
+export function TuriniDressUp({
+  customization,
   stats,
   saving,
-  onSave,
+  onChange,
 }: {
-  avatar: TuriniAvatar;
+  customization: TuriniCustomization;
   stats: AvatarStats;
   saving: boolean;
-  onSave: (next: TuriniAvatar) => void;
+  onChange: (next: TuriniCustomization) => void;
 }) {
-  const [draft, setDraft] = useState<TuriniAvatar>(avatar);
   const [slot, setSlot] = useState<AvatarSlot>("hat");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [saved, setSaved] = useState<TuriniAvatar>(avatar);
-
-  // 계정을 새로 불러오거나 저장이 끝나면 저장된 값으로 맞춥니다.
-  if (saved !== avatar) {
-    setSaved(avatar);
-    setDraft(avatar);
-  }
+  const [showLocked, setShowLocked] = useState(true);
+  const [view, setView] = useState<TurniView>("front");
 
   const unlockedIds = useMemo(() => {
     const set = new Set<string>();
-    AVATAR_ITEMS.forEach((item) => {
-      if (isItemUnlocked(item, stats)) set.add(item.id);
+    AVATAR_ITEMS.forEach((entry) => {
+      if (isItemUnlocked(entry, stats)) set.add(entry.id);
     });
     return set;
   }, [stats]);
 
   const slotItems = itemsForSlot(slot);
-  const visibleItems = slotItems.filter((item) => {
-    if (filter === "owned") return unlockedIds.has(item.id);
-    if (filter === "locked") return !unlockedIds.has(item.id);
-    return true;
-  });
+  const visible = showLocked ? slotItems : slotItems.filter((entry) => unlockedIds.has(entry.id));
+  const slotName = AVATAR_SLOTS.find((entry) => entry.key === slot)?.name ?? "";
+  const bag = findItem(customization.bag);
 
-  const dirty = AVATAR_SLOTS.some(({ key }) => draft[key] !== avatar[key]);
-  const ownedTotal = unlockedIds.size;
-
-  const choose = (item: AvatarItem) => {
-    if (!unlockedIds.has(item.id)) return;
-    setDraft((current) => ({
-      ...current,
-      [item.slot]: current[item.slot] === item.id ? (item.slot === "scene" ? current.scene : null) : item.id,
-    }));
+  const choose = (entry: AvatarItem) => {
+    if (!unlockedIds.has(entry.id)) return;
+    if (customization[entry.slot] === entry.id) return;
+    onChange({ ...customization, [entry.slot]: entry.id });
   };
 
   const clearSlot = () => {
-    if (slot === "scene") return;
-    setDraft((current) => ({ ...current, [slot]: null }));
+    if (customization[slot] === null) return;
+    onChange({ ...customization, [slot]: null });
   };
 
   return (
-    <section className="card-block turini-dress" aria-label="나만의 투리니 꾸미기">
+    <section className="card-block turini-dress" aria-label="캐릭터 꾸미기">
       <div className="turini-dress__head">
         <div>
           <p className="eyebrow">MY TURINI</p>
-          <h2>나만의 투리니 꾸미기</h2>
+          <h2>캐릭터 꾸미기</h2>
         </div>
-        <span className="turini-dress__count">
-          보유 {ownedTotal} / {AVATAR_ITEMS.length}
+        <span className="turini-dress__count" aria-live="polite">
+          {saving ? "저장 중…" : `보유 ${unlockedIds.size} / ${AVATAR_ITEMS.length}`}
         </span>
       </div>
 
-      <TuriniStage avatar={draft} className="turini-dress__stage--large" />
+      <div className="turini-dress__stage">
+        {view === "front" ? (
+          <TuriniAvatar
+            customization={customization}
+            className="turini-avatar--editor"
+            label="꾸미는 중인 나의 투리니"
+            scene
+          />
+        ) : (
+          <div className="turini-avatar turini-avatar--editor turini-avatar--turn">
+            <TurnaroundView view={view} bag={bag} />
+          </div>
+        )}
 
-      <p className="turini-dress__notice">
-        <b>개발 확인용 임시 도형</b>
-        모자·안경·목·가방·손 소품은 아직 실제 그림이 없어 위치 확인용 도형으로 보여 줍니다. 배경은 색만
-        쓰므로 지금이 최종 모습이에요.
-      </p>
-
-      <div className="turini-dress__slots" role="tablist" aria-label="꾸미기 부위">
-        {AVATAR_SLOTS.map(({ key, name }) => {
-          const worn = findItem(draft[key]);
-          return (
+        <div className="turini-dress__views" role="group" aria-label="보는 방향">
+          {(["front", "three-quarter-rear", "back"] as TurniView[]).map((entry) => (
             <button
-              key={key}
+              key={entry}
               type="button"
-              role="tab"
-              aria-selected={slot === key}
-              className="turini-dress__slot"
-              data-active={slot === key ? "true" : undefined}
-              onClick={() => setSlot(key)}
+              className="turini-dress__view"
+              data-active={view === entry ? "true" : undefined}
+              aria-pressed={view === entry}
+              onClick={() => setView(entry)}
             >
-              <span className="turini-dress__slot-art">
-                {worn ? <ItemArt item={worn} /> : <i aria-hidden="true">+</i>}
-              </span>
-              <b>{name}</b>
-              <small>{worn ? worn.name : "비어 있음"}</small>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="turini-dress__filters">
-        <div role="tablist" aria-label="아이템 보기">
-          {FILTERS.map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              role="tab"
-              aria-selected={filter === option.key}
-              data-active={filter === option.key ? "true" : undefined}
-              onClick={() => setFilter(option.key)}
-            >
-              {option.name}
+              {VIEW_LABEL[entry]}
             </button>
           ))}
         </div>
-        {slot !== "scene" ? (
-          <button type="button" className="turini-dress__clear" onClick={clearSlot} disabled={!draft[slot]}>
-            벗기
-          </button>
+        {view !== "front" ? (
+          <p className="turini-dress__view-note">
+            {view === "three-quarter-rear" && bag
+              ? "가방만 따로 보는 각도예요. 모자·안경까지 함께 입은 모습은 정면에서 볼 수 있어요."
+              : "등이 보이는 각도예요. 전체 모습은 정면에서 볼 수 있어요."}
+          </p>
         ) : null}
       </div>
 
-      {visibleItems.length === 0 ? (
-        <p className="turini-dress__empty">
-          {filter === "locked" ? "이 부위는 모두 열었어요!" : "아직 열린 아이템이 없어요."}
-        </p>
-      ) : (
-        <ul className="turini-dress__grid">
-          {visibleItems.map((item) => {
-            const unlocked = unlockedIds.has(item.id);
-            const selected = draft[item.slot] === item.id;
-            const { current, target } = requirementProgress(item.requirement, stats);
-            return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  className="turini-dress__item"
-                  data-state={selected ? "selected" : unlocked ? "owned" : "locked"}
-                  onClick={() => choose(item)}
-                  disabled={!unlocked}
-                  aria-pressed={selected}
-                  aria-label={
-                    unlocked
-                      ? `${item.name}${selected ? " · 착용 중" : ""}`
-                      : `${item.name} · 잠김 · ${requirementLabel(item.requirement)}`
-                  }
-                >
-                  <span className="turini-dress__item-art">
-                    <ItemArt item={item} />
-                    {!unlocked ? (
-                      <svg className="turini-dress__item-lock" viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          d="M7 10V7.5a5 5 0 0 1 10 0V10"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.4"
-                          strokeLinecap="round"
-                        />
-                        <rect x="4.5" y="10" width="15" height="10.5" rx="3" fill="currentColor" />
-                      </svg>
-                    ) : null}
-                  </span>
-                  <b>{item.name}</b>
-                  {item.placeholder ? <em className="turini-dress__temp">개발 확인용</em> : null}
-                  {unlocked ? (
-                    <small>{selected ? "착용 중" : "보유"}</small>
-                  ) : (
-                    <small className="turini-dress__need">
-                      {requirementLabel(item.requirement)}
-                      <i>
-                        {Math.min(current, target)}/{target}
-                      </i>
-                    </small>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <div className="turini-dress__save">
-        <p>{dirty ? "바꾼 내용이 아직 저장되지 않았어요." : "계정에 저장된 모습이에요."}</p>
-        <div>
-          <button type="button" className="secondary-button" onClick={() => setDraft(avatar)} disabled={!dirty || saving}>
-            되돌리기
-          </button>
+      <div className="turini-dress__tabs" role="tablist" aria-label="꾸미기 카테고리">
+        {AVATAR_SLOTS.map(({ key, name }) => (
           <button
+            key={key}
             type="button"
-            className="primary-button"
-            onClick={() => onSave(draft)}
-            disabled={!dirty || saving}
+            role="tab"
+            aria-selected={slot === key}
+            className="turini-dress__tab"
+            data-active={slot === key ? "true" : undefined}
+            onClick={() => {
+              setSlot(key);
+              // 가방은 등 뒤라 정면으로는 잘 보이지 않습니다. 탭을 열면 각도를 돌려 줍니다.
+              setView(key === "bag" ? "three-quarter-rear" : "front");
+            }}
           >
-            {saving ? "저장 중…" : "저장하기"}
+            {name}
           </button>
-        </div>
+        ))}
       </div>
+
+      <div className="turini-dress__toolbar">
+        <span>
+          {slotName} · {visible.length}종
+        </span>
+        <label className="turini-dress__toggle">
+          <input
+            type="checkbox"
+            checked={showLocked}
+            onChange={(event) => setShowLocked(event.target.checked)}
+          />
+          잠긴 항목 보기
+        </label>
+      </div>
+
+      <ul className="turini-dress__grid">
+        {slot !== "background" ? (
+          <li>
+            <button
+              type="button"
+              className="turini-dress__item turini-dress__item--none"
+              data-state={customization[slot] === null ? "selected" : "owned"}
+              onClick={clearSlot}
+              aria-pressed={customization[slot] === null}
+            >
+              <span className="turini-dress__item-art">
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="turini-dress__none-icon">
+                  <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <path d="M6 18 18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                {customization[slot] === null ? <CheckBadge /> : null}
+              </span>
+              <b>착용 해제</b>
+            </button>
+          </li>
+        ) : null}
+
+        {visible.map((entry) => {
+          const unlocked = unlockedIds.has(entry.id);
+          const selected = customization[entry.slot] === entry.id;
+          const { current, target } = requirementProgress(entry.requirement, stats);
+          return (
+            <li key={entry.id}>
+              <button
+                type="button"
+                className="turini-dress__item"
+                data-state={selected ? "selected" : unlocked ? "owned" : "locked"}
+                onClick={() => choose(entry)}
+                disabled={!unlocked}
+                aria-pressed={selected}
+                aria-label={
+                  unlocked
+                    ? `${entry.name}${selected ? " · 착용 중" : ""}`
+                    : `${entry.name} · 잠김 · ${requirementLabel(entry.requirement)}`
+                }
+              >
+                <span className="turini-dress__item-art">
+                  {entry.slot === "background" ? <ItemImage item={entry} /> : <WornThumb item={entry} />}
+                  {selected ? <CheckBadge /> : null}
+                  {!unlocked ? <LockBadge /> : null}
+                </span>
+                <b>{entry.name}</b>
+                {unlocked ? null : (
+                  <small className="turini-dress__need">
+                    {requirementLabel(entry.requirement)}
+                    <i>
+                      {remainingLabel(entry.requirement, stats)} ({Math.min(current, target)}/{target})
+                    </i>
+                  </small>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {visible.length === 0 ? (
+        <p className="turini-dress__empty">이 카테고리에 아직 열린 아이템이 없어요.</p>
+      ) : null}
+
+      <p className="turini-dress__notice">
+        고른 아이템은 바로 저장돼서 새로고침하거나 다시 로그인해도 그대로예요. 홈·학습·마이페이지의 투리니에도 함께 반영돼요.
+      </p>
     </section>
   );
 }
 
-export { DEFAULT_AVATAR };
+function CheckBadge() {
+  return (
+    <span className="turini-dress__check" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path
+          d="m5 12.5 4.5 4.5L19 7.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
+function LockBadge() {
+  return (
+    <span className="turini-dress__lock" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path
+          d="M7 10V7.5a5 5 0 0 1 10 0V10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+        />
+        <rect x="4.5" y="10" width="15" height="10.5" rx="3" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}

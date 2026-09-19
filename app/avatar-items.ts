@@ -1,73 +1,235 @@
 /**
- * 나만의 투리니 꾸미기 — 기준점, 아이템 목록, 해제 조건
+ * 나만의 투리니 꾸미기 — 아이템 목록, 배치 기준, 해제 조건
  *
- * 화면과 분리된 순수 계산 모듈입니다. 여기에는 상태가 없고,
- * 해제 여부는 이미 저장 중인 학습 기록(XP·레벨·연속 학습·카테고리 진도)에서
- * 그때그때 계산합니다. 해제 목록을 따로 저장하지 않으므로 기록이 어긋날 일이 없습니다.
+ * 화면과 분리된 순수 계산 모듈입니다. 상태가 없고, 해제 여부는 이미 저장 중인
+ * 학습 기록(XP·레벨·연속 학습·카테고리 진도)에서 그때그때 계산합니다.
+ * 해제 목록을 따로 저장하지 않으므로 기록이 어긋날 일이 없습니다.
+ *
+ * 이미지는 전달받은 자산팩(`public/assets/turini/`)을 그대로 씁니다.
  */
 
-export type AvatarSlot = "hat" | "glasses" | "neck" | "bag" | "prop" | "scene";
+export type AvatarSlot = "hat" | "glasses" | "neck" | "bag" | "background";
 
-export const AVATAR_SLOTS: { key: AvatarSlot; name: string; anchor: AvatarAnchor | null }[] = [
-  { key: "hat", name: "모자", anchor: "head" },
-  { key: "glasses", name: "안경", anchor: "face" },
-  { key: "neck", name: "목 액세서리", anchor: "neck" },
-  { key: "bag", name: "가방", anchor: "back" },
-  { key: "prop", name: "손 소품", anchor: "hand" },
-  { key: "scene", name: "배경", anchor: null },
-];
-
-export type AvatarAnchor = "head" | "face" | "neck" | "back" | "hand";
-
-/**
- * 공통 기준점 — 캐릭터 무대(정사각형) 기준 % 좌표.
- *
- * 값은 `public/assets/turini-atlas-v2.png` 의 idle 0번 프레임(288×288)에서 측정했습니다.
- * 무대가 커지든 작아지든 % 이므로 액세서리는 항상 같은 자리에 붙습니다.
- */
-export const AVATAR_ANCHORS: Record<AvatarAnchor, { x: number; y: number; note: string }> = {
-  head: { x: 48, y: 27, note: "머리 정수리 — 모자 아랫변이 닿는 지점" },
-  face: { x: 47.5, y: 44, note: "두 눈 사이 중심 — 안경 중심" },
-  neck: { x: 48, y: 62, note: "턱 아래 어깨선 — 목 액세서리 중심" },
-  back: { x: 65, y: 70, note: "등에 멘 가방 중심 — 기존 초록 가방 자리" },
-  hand: { x: 40, y: 69, note: "화면 왼쪽 손 — 소품 중심" },
+/** 자산팩 폴더 이름 */
+const FOLDER: Record<AvatarSlot, string> = {
+  hat: "customization/hats",
+  glasses: "customization/glasses",
+  neck: "customization/neck",
+  bag: "customization/bags",
+  background: "backgrounds",
 };
 
-/** 슬롯별 배치 규칙. width/height 도 무대 대비 % 입니다. */
-export const AVATAR_LAYOUT: Record<
-  AvatarSlot,
-  { anchor: AvatarAnchor | null; width: number; height: number; align: "bottom" | "center"; layer: number }
-> = {
-  scene: { anchor: null, width: 100, height: 100, align: "center", layer: 0 },
-  bag: { anchor: "back", width: 24, height: 26, align: "center", layer: 2 },
-  neck: { anchor: "neck", width: 32, height: 9, align: "center", layer: 3 },
-  prop: { anchor: "hand", width: 18, height: 18, align: "center", layer: 4 },
-  glasses: { anchor: "face", width: 33, height: 10, align: "center", layer: 5 },
-  hat: { anchor: "head", width: 32, height: 17, align: "bottom", layer: 6 },
-};
+export const ASSET_ROOT = "/assets/turini";
 
-/** 무대 안에서 아이템이 차지할 사각형을 % 로 돌려줍니다. */
-export function slotRect(slot: AvatarSlot) {
-  const layout = AVATAR_LAYOUT[slot];
-  if (!layout.anchor) return { left: 0, top: 0, width: 100, height: 100 };
-  const anchor = AVATAR_ANCHORS[layout.anchor];
-  return {
-    left: anchor.x - layout.width / 2,
-    top: layout.align === "bottom" ? anchor.y - layout.height : anchor.y - layout.height / 2,
-    width: layout.width,
-    height: layout.height,
-  };
+/** 원본 이미지 경로 (전달받은 그대로) */
+export function assetPath(slot: AvatarSlot, file: string) {
+  return `${ASSET_ROOT}/${FOLDER[slot]}/${file}.png`;
+}
+
+/** 가볍게 줄인 webp 경로. 원본은 그대로 두고 화면에서만 먼저 씁니다. */
+export function assetPathWebp(slot: AvatarSlot, file: string) {
+  return `${ASSET_ROOT}/optimized/${FOLDER[slot]}/${file}.webp`;
 }
 
 /**
- * 가리면 안 되는 영역 (무대 대비 %). 자산 제작 기준으로도 씁니다.
- * 코는 안경다리가 자연스럽게 지나가는 자리라 보호 영역에서 뺐습니다.
+ * 가방이 없는 기본 캐릭터.
+ * 이 파일이 있으면 그대로 쓰고, 없으면 기존 스프라이트로 자동 대체합니다.
+ * (자산팩이 잘려 들어와 아직 없는 상태 — 파일만 넣으면 코드 수정 없이 적용됩니다)
  */
-export const KEEP_CLEAR = {
-  earLeft: { left: 27, top: 24, width: 10, height: 9 },
-  earRight: { left: 61, top: 24, width: 11, height: 9 },
-  eyes: { left: 33, top: 39, width: 29, height: 9 },
-  mouth: { left: 39, top: 49.5, width: 17, height: 7 },
+export const BASE_NO_BACKPACK = `${ASSET_ROOT}/character/base/turini-base-no-backpack.png`;
+
+/**
+ * 착용 완성본 — 캐릭터가 그 아이템 하나를 실제로 착용한 상태로 다시 렌더링한 그림입니다.
+ * **목록 썸네일과 "이 아이템 하나만" 미리보기에만** 씁니다.
+ * 여러 장을 겹쳐 조합하면 조명·각도가 어긋나므로 절대 겹치지 않습니다.
+ * 여러 아이템을 함께 입은 모습은 리그(TuriniRig)로 합성합니다.
+ */
+const WORN_FOLDER: Record<string, string> = {
+  hat: "hats",
+  glasses: "glasses",
+  neck: "neck",
+  bag: "bags",
+};
+
+export function wornPreview(item: { slot: AvatarSlot; file: string }) {
+  const folder = WORN_FOLDER[item.slot];
+  if (!folder) return null;
+  return {
+    webp: `${ASSET_ROOT}/optimized/worn/${folder}/${item.file}-worn.webp`,
+    thumb: `${ASSET_ROOT}/optimized/worn-thumb/${folder}/${item.file}-worn.webp`,
+    png: `${ASSET_ROOT}/worn/${folder}/${item.file}-worn.png`,
+  };
+}
+
+/** 회전 미리보기용 기본 캐릭터 3종 */
+export type TurniView = "front" | "three-quarter-rear" | "back";
+export const TURNAROUND: Record<TurniView, string> = {
+  front: `${ASSET_ROOT}/turnaround/turini-front.png`,
+  "three-quarter-rear": `${ASSET_ROOT}/turnaround/turini-three-quarter-rear.png`,
+  back: `${ASSET_ROOT}/turnaround/turini-back.png`,
+};
+export const TURNAROUND_WEBP: Record<TurniView, string> = {
+  front: `${ASSET_ROOT}/optimized/turnaround/turini-front.webp`,
+  "three-quarter-rear": `${ASSET_ROOT}/optimized/turnaround/turini-three-quarter-rear.webp`,
+  back: `${ASSET_ROOT}/optimized/turnaround/turini-back.webp`,
+};
+export const VIEW_LABEL: Record<TurniView, string> = {
+  front: "정면",
+  "three-quarter-rear": "뒤쪽 3/4",
+  back: "뒷면",
+};
+
+export const AVATAR_SLOTS: { key: AvatarSlot; name: string }[] = [
+  { key: "hat", name: "모자" },
+  { key: "glasses", name: "안경" },
+  { key: "neck", name: "목 액세서리" },
+  { key: "bag", name: "가방" },
+  { key: "background", name: "배경" },
+];
+
+/**
+ * 아이템마다 그림이 512×512 칸 안에서 차지하는 자리(투명 여백 제외)입니다.
+ * [왼쪽, 위, 오른쪽, 아래] — 칸 크기에 대한 비율이고, 실제 PNG 를 재서 넣었습니다.
+ *
+ * 칸 여백이 아이템마다 다르기 때문에, 칸을 그대로 얹으면 어떤 안경은 눈에,
+ * 어떤 안경은 입에 걸립니다. 그래서 칸이 아니라 **그림 자체**를 기준점에 맞춥니다.
+ */
+export const CONTENT_BOX: Record<string, [number, number, number, number]> = {
+  "hat:chef_hat": [0.1016, 0.1406, 0.8789, 0.7363],
+  "hat:explorer_hat": [0.1289, 0.3398, 0.873, 0.7871],
+  "hat:gold_crown": [0.1172, 0.2793, 0.8145, 0.7363],
+  "hat:graduation_cap": [0.1016, 0.25, 0.8965, 0.7402],
+  "hat:green_cap": [0.1895, 0.3145, 0.8691, 0.8457],
+  "hat:red_beanie": [0.1445, 0.1641, 0.8633, 0.793],
+  "hat:straw_hat": [0.125, 0.3301, 0.8965, 0.7402],
+  "hat:wizard_hat": [0.127, 0.1602, 0.873, 0.7266],
+  "hat:yellow_bucket": [0.1172, 0.3398, 0.877, 0.8262],
+  "glasses:black_square": [0.1426, 0.4707, 0.8594, 0.7617],
+  "glasses:blue_sport": [0.1426, 0.373, 0.8691, 0.6582],
+  "glasses:gold_round": [0.1211, 0.4414, 0.875, 0.7676],
+  "glasses:green_round": [0.1406, 0.4414, 0.8965, 0.7812],
+  "glasses:heart_sunglasses": [0.127, 0.3594, 0.8809, 0.6777],
+  "glasses:monocle": [0.2891, 0.127, 0.8965, 0.6719],
+  "glasses:red_reading": [0.1426, 0.2793, 0.8965, 0.5547],
+  "glasses:safety_goggles": [0.1133, 0.252, 0.875, 0.5898],
+  "glasses:star_glasses": [0.1309, 0.3184, 0.8574, 0.6875],
+  "neck:blue_scarf": [0.1543, 0.2305, 0.8457, 0.873],
+  "neck:camera": [0.2246, 0.0801, 0.8438, 0.7422],
+  "neck:flower_lei": [0.123, 0.1172, 0.8789, 0.791],
+  "neck:gold_medal": [0.1914, 0.1289, 0.8008, 0.7539],
+  "neck:green_bow": [0.1855, 0.3145, 0.8887, 0.6953],
+  "neck:pearl_necklace": [0.1016, 0.1523, 0.8398, 0.918],
+  "neck:red_tie": [0.2637, 0.1562, 0.7695, 0.8848],
+  "neck:white_green_collar": [0.1523, 0.1582, 0.8438, 0.7129],
+  "neck:yellow_bandana": [0.1855, 0.1523, 0.8965, 0.918],
+  "bag:black_business": [0.1016, 0.0898, 0.8926, 0.8164],
+  "bag:green_original": [0.1348, 0.1172, 0.8789, 0.8711],
+  "bag:mint_bubble": [0.1484, 0.125, 0.8984, 0.8594],
+  "bag:navy_school": [0.1406, 0.1172, 0.8691, 0.8691],
+  "bag:pink_heart": [0.1465, 0.1289, 0.877, 0.8555],
+  "bag:purple_star": [0.1152, 0.1367, 0.8789, 0.918],
+  "bag:red_hiking": [0.1348, 0.0996, 0.8809, 0.918],
+  "bag:tan_explorer": [0.1582, 0.1094, 0.8984, 0.9082],
+  "bag:yellow_giraffe": [0.1113, 0.1426, 0.8828, 0.875],
+  "background:finance_city": [0, 0, 1, 1],
+  "background:forest_class": [0, 0, 1, 1],
+  "background:goal_room_night": [0, 0, 1, 1],
+  "background:study_room_day": [0, 0, 1, 1],
+};
+
+/** 기본 그림 — 칸 여백을 알 수 없는 아이템이 들어왔을 때 쓰는 평균값 */
+const FALLBACK_BOX: [number, number, number, number] = [0.13, 0.22, 0.87, 0.8];
+
+export function contentBox(id: string): [number, number, number, number] {
+  return CONTENT_BOX[id] ?? FALLBACK_BOX;
+}
+
+/**
+ * 슬롯마다 "그림의 어느 지점"을 "캐릭터의 어느 지점"에 맞출지 정합니다.
+ * 좌표는 **리그 캔버스(1200×1200)** 대비 % 입니다. 리그 파츠와 액세서리가
+ * 같은 좌표계를 쓰므로, 고개가 기울면 모자·안경·목장식이 함께 기울어집니다.
+ *
+ * 값은 리그를 합성해 눈·코·입·귀·목·어깨 픽셀 위치를 직접 재서 잡았습니다.
+ * (눈 426–767 / 393–529, 입 545–647 / 523–554, 목 시작 y≈622, 어깨 y≈700)
+ *
+ * - x, y   : 캐릭터 쪽 기준점
+ * - gx, gy : 그림에서 그 기준점에 닿을 지점 (0=왼쪽/위, 1=오른쪽/아래)
+ * - span   : 그림이 차지할 크기(%). fit 이 "width" 면 가로, "max" 면 긴 쪽 기준
+ * - spanY  : 세로 최대치(%). 세로로 큰 그림이 얼굴을 덮지 않도록 제한합니다
+ */
+export type SlotAnchor = {
+  x: number;
+  y: number;
+  gx: number;
+  gy: number;
+  span: number;
+  fit: "width" | "max";
+  spanY?: number;
+};
+
+export const SLOT_ANCHOR: Record<AvatarSlot, SlotAnchor> = {
+  // 이마 선(눈 위)에 모자 아래쪽 가운데를 맞춥니다.
+  hat: { x: 49.7, y: 32.1, gx: 0.5, gy: 1, span: 39.2, fit: "width" },
+  // 두 눈 한가운데에 안경 한가운데를 맞추고, 세로는 12% 로 묶어 입을 덮지 않게 합니다.
+  glasses: { x: 49.7, y: 37.55, gx: 0.5, gy: 0.5, span: 28, fit: "width", spanY: 12 },
+  // 목이 시작하는 곳에 목장식 위쪽 가운데를 맞춥니다. 넥타이가 무릎까지 내려오지 않게 세로 제한.
+  neck: { x: 49.7, y: 51.8, gx: 0.5, gy: 0, span: 29.2, fit: "width", spanY: 30 },
+  // 등 뒤 — 몸통 레이어보다 아래에 그리므로 절대 몸 앞으로 나오지 않습니다.
+  bag: { x: 49.8, y: 62, gx: 0.5, gy: 0.5, span: 36, fit: "max" },
+  background: { x: 50, y: 50, gx: 0.5, gy: 0.5, span: 100, fit: "width" },
+};
+
+/** 가방 어깨끈 색 — 각 가방 그림에서 가장 많이 쓰인 색을 재서 넣었습니다. */
+export const BAG_STRAP_COLOR: Record<string, string> = {
+  "bag:black_business": "#1f1f1f",
+  "bag:green_original": "#378f26",
+  "bag:mint_bubble": "#74c6b2",
+  "bag:navy_school": "#1c3164",
+  "bag:pink_heart": "#f9a3c2",
+  "bag:purple_star": "#7835c5",
+  "bag:red_hiking": "#bc1f1b",
+  "bag:tan_explorer": "#dbae76",
+  "bag:yellow_giraffe": "#fcd82f",
+};
+
+export function bagStrapColor(id: string | null | undefined) {
+  return (id && BAG_STRAP_COLOR[id]) || "#8a8f8c";
+}
+
+export type Placement = { left: number; top: number; size: number };
+
+/**
+ * 아이템 한 개의 실제 배치를 구합니다.
+ * 그림 자체를 기준점에 맞추므로, 칸 여백이 서로 다른 아이템도 같은 자리에 옵니다.
+ */
+export function placementFor(item: { id: string; slot: AvatarSlot }): Placement {
+  if (item.slot === "background") return { left: 0, top: 0, size: 100 };
+  const anchor = SLOT_ANCHOR[item.slot];
+
+  const [x0, y0, x1, y1] = contentBox(item.id);
+  const boxWidth = Math.max(0.01, x1 - x0);
+  const boxHeight = Math.max(0.01, y1 - y0);
+  const basis = anchor.fit === "width" ? boxWidth : Math.max(boxWidth, boxHeight);
+  // 세로 제한이 있으면 둘 중 작은 쪽을 따라갑니다 — 그래야 얼굴을 덮지 않습니다.
+  const size = anchor.spanY
+    ? Math.min(anchor.span / basis, anchor.spanY / boxHeight)
+    : anchor.span / basis;
+
+  return {
+    left: anchor.x - (x0 + anchor.gx * boxWidth) * size,
+    top: anchor.y - (y0 + anchor.gy * boxHeight) * size,
+    size,
+  };
+}
+
+/** 겹치는 순서. 숫자가 클수록 위에 옵니다. */
+export const LAYER_ORDER: Record<AvatarSlot | "base", number> = {
+  background: 0,
+  bag: 1,
+  base: 2,
+  neck: 3,
+  glasses: 4,
+  hat: 5,
 };
 
 export type AvatarRequirement =
@@ -82,13 +244,9 @@ export type AvatarRequirement =
 export type AvatarItem = {
   id: string;
   slot: AvatarSlot;
+  /** 자산팩 파일 이름 (확장자 제외) */
+  file: string;
   name: string;
-  /** 임시 도형인지 여부. true 면 화면에 '개발 확인용' 표시가 붙습니다. */
-  placeholder: boolean;
-  /** 임시 도형 모양 키 (실제 이미지가 들어오면 없어집니다) */
-  shape?: string;
-  /** 색상 — 임시 도형과 배경에 씁니다 */
-  tint: string;
   requirement: AvatarRequirement;
 };
 
@@ -98,70 +256,77 @@ export type AvatarStats = {
   level: number;
   streak: number;
   solved: number;
-  /** 카테고리별 완료 레슨 수 */
   categoryLessons: Record<string, number>;
 };
 
-const NONE_SUFFIX = "-none";
-
-/** 슬롯을 비우는 '없음' 항목 id */
-export function noneItemId(slot: AvatarSlot) {
-  return `${slot}${NONE_SUFFIX}`;
+function item(
+  slot: AvatarSlot,
+  file: string,
+  name: string,
+  requirement: AvatarRequirement,
+): AvatarItem {
+  return { id: `${slot}:${file}`, slot, file, name, requirement };
 }
 
-export function isNoneItem(id: string) {
-  return id.endsWith(NONE_SUFFIX);
-}
-
-/**
- * 아이템 목록.
- *
- * 배경(scene)은 색과 그라데이션만 쓰므로 지금 상태가 최종본입니다.
- * 나머지 다섯 슬롯은 **실제 액세서리 이미지가 아직 없어서 임시 도형**이며,
- * placeholder: true 로 표시해 화면에서도 '개발 확인용'임을 알립니다.
- * 필요한 자산 규격은 design-assets/turini-avatar/NEEDED_ITEM_ASSETS.md 참고.
- */
 export const AVATAR_ITEMS: AvatarItem[] = [
-  // ── 모자 ────────────────────────────────────────────────
-  { id: "hat-sprout", slot: "hat", name: "새싹 모자", placeholder: true, shape: "beanie", tint: "#4fb96b", requirement: { kind: "always" } },
-  { id: "hat-coin", slot: "hat", name: "동전 캡", placeholder: true, shape: "cap", tint: "#f0b429", requirement: { kind: "xp", value: 300 } },
-  { id: "hat-analyst", slot: "hat", name: "애널리스트 중절모", placeholder: true, shape: "fedora", tint: "#5b5f7a", requirement: { kind: "streak", value: 7 } },
-  { id: "hat-graduate", slot: "hat", name: "졸업 모자", placeholder: true, shape: "graduate", tint: "#2f3350", requirement: { kind: "category", category: "주식", lessons: 12 } },
+  // ── 모자 9 ──────────────────────────────────────────────
+  item("hat", "green_cap", "초록 캡", { kind: "always" }),
+  item("hat", "yellow_bucket", "노랑 버킷햇", { kind: "always" }),
+  item("hat", "red_beanie", "빨강 비니", { kind: "xp", value: 200 }),
+  item("hat", "straw_hat", "밀짚모자", { kind: "xp", value: 500 }),
+  item("hat", "explorer_hat", "탐험가 모자", { kind: "streak", value: 5 }),
+  item("hat", "chef_hat", "요리사 모자", { kind: "solved", value: 80 }),
+  item("hat", "graduation_cap", "졸업 모자", { kind: "category", category: "주식", lessons: 12 }),
+  item("hat", "wizard_hat", "마법사 모자", { kind: "level", value: 8 }),
+  item("hat", "gold_crown", "황금 왕관", { kind: "everyCategory", lessons: 6 }),
 
-  // ── 안경 ────────────────────────────────────────────────
-  { id: "glasses-round", slot: "glasses", name: "동그란 안경", placeholder: true, shape: "round", tint: "#6b5a44", requirement: { kind: "always" } },
-  { id: "glasses-study", slot: "glasses", name: "공부 안경", placeholder: true, shape: "square", tint: "#3b5b8c", requirement: { kind: "solved", value: 60 } },
-  { id: "glasses-sun", slot: "glasses", name: "선글라스", placeholder: true, shape: "sun", tint: "#2b2b33", requirement: { kind: "level", value: 5 } },
+  // ── 안경 9 ──────────────────────────────────────────────
+  item("glasses", "green_round", "초록 동그란 안경", { kind: "always" }),
+  item("glasses", "black_square", "검정 사각 안경", { kind: "always" }),
+  item("glasses", "red_reading", "빨강 독서 안경", { kind: "solved", value: 40 }),
+  item("glasses", "blue_sport", "파랑 스포츠 고글", { kind: "xp", value: 400 }),
+  item("glasses", "star_glasses", "별 안경", { kind: "streak", value: 3 }),
+  item("glasses", "heart_sunglasses", "하트 선글라스", { kind: "xp", value: 900 }),
+  item("glasses", "safety_goggles", "안전 고글", { kind: "category", category: "위험 관리", lessons: 6 }),
+  item("glasses", "gold_round", "금테 안경", { kind: "level", value: 6 }),
+  item("glasses", "monocle", "모노클", { kind: "everyCategory", lessons: 4 }),
 
-  // ── 목 액세서리 ─────────────────────────────────────────
-  { id: "neck-scarf", slot: "neck", name: "체크 목도리", placeholder: true, shape: "scarf", tint: "#e0684f", requirement: { kind: "always" } },
-  { id: "neck-tie", slot: "neck", name: "금융인 넥타이", placeholder: true, shape: "tie", tint: "#2f6fae", requirement: { kind: "xp", value: 800 } },
-  { id: "neck-medal", slot: "neck", name: "성장 메달", placeholder: true, shape: "medal", tint: "#d8a52a", requirement: { kind: "everyCategory", lessons: 3 } },
+  // ── 목 액세서리 9 ───────────────────────────────────────
+  item("neck", "green_bow", "초록 나비넥타이", { kind: "always" }),
+  item("neck", "blue_scarf", "파랑 목도리", { kind: "always" }),
+  item("neck", "yellow_bandana", "노랑 반다나", { kind: "xp", value: 300 }),
+  item("neck", "red_tie", "빨강 넥타이", { kind: "xp", value: 700 }),
+  item("neck", "white_green_collar", "교복 칼라", { kind: "solved", value: 120 }),
+  item("neck", "flower_lei", "꽃 목걸이", { kind: "streak", value: 10 }),
+  item("neck", "camera", "목걸이 카메라", { kind: "category", category: "분산 투자", lessons: 6 }),
+  item("neck", "pearl_necklace", "진주 목걸이", { kind: "level", value: 7 }),
+  item("neck", "gold_medal", "금메달", { kind: "everyCategory", lessons: 8 }),
 
-  // ── 가방 ────────────────────────────────────────────────
-  { id: "bag-satchel", slot: "bag", name: "가죽 크로스백", placeholder: true, shape: "satchel", tint: "#a9743f", requirement: { kind: "always" } },
-  { id: "bag-shield", slot: "bag", name: "방패 배낭", placeholder: true, shape: "shield", tint: "#3f8f8a", requirement: { kind: "category", category: "위험 관리", lessons: 6 } },
-  { id: "bag-vault", slot: "bag", name: "금고 배낭", placeholder: true, shape: "vault", tint: "#59637c", requirement: { kind: "xp", value: 1500 } },
+  // ── 가방 9 ──────────────────────────────────────────────
+  item("bag", "green_original", "기본 초록 가방", { kind: "always" }),
+  item("bag", "navy_school", "남색 책가방", { kind: "always" }),
+  item("bag", "yellow_giraffe", "기린 가방", { kind: "xp", value: 250 }),
+  item("bag", "red_hiking", "빨강 등산가방", { kind: "solved", value: 100 }),
+  item("bag", "pink_heart", "하트 가방", { kind: "streak", value: 7 }),
+  item("bag", "mint_bubble", "민트 버블백", { kind: "xp", value: 1200 }),
+  item("bag", "purple_star", "별 가방", { kind: "level", value: 5 }),
+  item("bag", "tan_explorer", "탐험가 배낭", { kind: "category", category: "펀드/ETF", lessons: 8 }),
+  item("bag", "black_business", "비즈니스 백", { kind: "everyCategory", lessons: 10 }),
 
-  // ── 손 소품 ─────────────────────────────────────────────
-  { id: "prop-coin", slot: "prop", name: "금화", placeholder: true, shape: "coin", tint: "#efb42b", requirement: { kind: "always" } },
-  { id: "prop-chart", slot: "prop", name: "수익률 차트", placeholder: true, shape: "chart", tint: "#2f8fe5", requirement: { kind: "category", category: "수익률 계산", lessons: 6 } },
-  { id: "prop-piggy", slot: "prop", name: "돼지 저금통", placeholder: true, shape: "piggy", tint: "#eb8aa6", requirement: { kind: "streak", value: 14 } },
-
-  // ── 배경 (색상만 쓰므로 지금이 최종본) ──────────────────
-  { id: "scene-meadow", slot: "scene", name: "새싹 들판", placeholder: false, tint: "#8fd79b", requirement: { kind: "always" } },
-  { id: "scene-dawn", slot: "scene", name: "장 시작 새벽", placeholder: false, tint: "#f6c98f", requirement: { kind: "level", value: 3 } },
-  { id: "scene-night", slot: "scene", name: "야간 시장", placeholder: false, tint: "#6e7fc0", requirement: { kind: "solved", value: 240 } },
-  { id: "scene-summit", slot: "scene", name: "정상 고원", placeholder: false, tint: "#7ec9d6", requirement: { kind: "everyCategory", lessons: 6 } },
+  // ── 배경 4 ──────────────────────────────────────────────
+  item("background", "study_room_day", "낮 공부방", { kind: "always" }),
+  item("background", "forest_class", "숲속 교실", { kind: "level", value: 3 }),
+  item("background", "finance_city", "금융 도시", { kind: "solved", value: 200 }),
+  item("background", "goal_room_night", "밤 목표방", { kind: "everyCategory", lessons: 6 }),
 ];
 
 export function itemsForSlot(slot: AvatarSlot) {
-  return AVATAR_ITEMS.filter((item) => item.slot === slot);
+  return AVATAR_ITEMS.filter((entry) => entry.slot === slot);
 }
 
-export function findItem(id: string | null) {
+export function findItem(id: string | null | undefined) {
   if (!id) return null;
-  return AVATAR_ITEMS.find((item) => item.id === id) ?? null;
+  return AVATAR_ITEMS.find((entry) => entry.id === id) ?? null;
 }
 
 /** 조건 달성 정도 — 화면에 '3/7일' 처럼 보여 주려고 씁니다. */
@@ -178,7 +343,10 @@ export function requirementProgress(requirement: AvatarRequirement, stats: Avata
     case "solved":
       return { current: stats.solved, target: requirement.value };
     case "category":
-      return { current: stats.categoryLessons[requirement.category] ?? 0, target: requirement.lessons };
+      return {
+        current: stats.categoryLessons[requirement.category] ?? 0,
+        target: requirement.lessons,
+      };
     case "everyCategory": {
       const values = Object.values(stats.categoryLessons);
       const reached = values.filter((lessons) => lessons >= requirement.lessons).length;
@@ -187,8 +355,8 @@ export function requirementProgress(requirement: AvatarRequirement, stats: Avata
   }
 }
 
-export function isItemUnlocked(item: AvatarItem, stats: AvatarStats) {
-  const { current, target } = requirementProgress(item.requirement, stats);
+export function isItemUnlocked(entry: AvatarItem, stats: AvatarStats) {
+  const { current, target } = requirementProgress(entry.requirement, stats);
   return current >= target;
 }
 
@@ -197,7 +365,7 @@ export function requirementLabel(requirement: AvatarRequirement) {
     case "always":
       return "처음부터 사용 가능";
     case "xp":
-      return `XP ${requirement.value} 달성`;
+      return `XP ${requirement.value} 모으기`;
     case "level":
       return `Lv.${requirement.value} 달성`;
     case "streak":
@@ -211,25 +379,53 @@ export function requirementLabel(requirement: AvatarRequirement) {
   }
 }
 
-/** 저장되는 꾸미기 상태. 값은 아이템 id 이고, 비워 두면 null 입니다. */
-export type TuriniAvatar = Record<AvatarSlot, string | null>;
+/** 잠금 카드에 보여 줄 '얼마나 남았는지' 한 줄 */
+export function remainingLabel(requirement: AvatarRequirement, stats: AvatarStats) {
+  const { current, target } = requirementProgress(requirement, stats);
+  const left = Math.max(0, target - current);
+  switch (requirement.kind) {
+    case "xp":
+      return `XP ${left} 더 필요`;
+    case "level":
+      return `${left}레벨 더 필요`;
+    case "streak":
+      return `${left}일 더 필요`;
+    case "solved":
+      return `${left}문제 더 필요`;
+    case "category":
+      return `${left}레슨 더 필요`;
+    case "everyCategory":
+      return `${left}개 카테고리 남음`;
+    default:
+      return "";
+  }
+}
 
-export const DEFAULT_AVATAR: TuriniAvatar = {
+/** 저장되는 꾸미기 상태. 값은 아이템 id 이고, 비워 두면 null 입니다. */
+export type TuriniCustomization = {
+  hat: string | null;
+  glasses: string | null;
+  neck: string | null;
+  bag: string | null;
+  background: string | null;
+};
+
+export const DEFAULT_CUSTOMIZATION: TuriniCustomization = {
   hat: null,
   glasses: null,
   neck: null,
   bag: null,
-  prop: null,
-  scene: "scene-meadow",
+  background: "background:study_room_day",
 };
 
 /**
- * 서버에서 불러온 값을 안전한 모양으로 맞춥니다.
+ * 저장된 값을 안전한 모양으로 맞춥니다.
  * 모르는 id, 슬롯이 다른 id, 아직 해제되지 않은 id 는 비웁니다.
+ * (손상된 저장 데이터나 목록에서 사라진 아이템이 들어와도 화면이 깨지지 않습니다)
  */
-export function normalizeAvatar(value: unknown, stats?: AvatarStats): TuriniAvatar {
+export function normalizeCustomization(value: unknown, stats?: AvatarStats): TuriniCustomization {
   const source = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
-  const next: TuriniAvatar = { ...DEFAULT_AVATAR };
+  const next: TuriniCustomization = { ...DEFAULT_CUSTOMIZATION };
   for (const { key } of AVATAR_SLOTS) {
     const raw = source[key];
     if (raw === null) {
@@ -237,10 +433,10 @@ export function normalizeAvatar(value: unknown, stats?: AvatarStats): TuriniAvat
       continue;
     }
     if (typeof raw !== "string") continue;
-    const item = findItem(raw);
-    if (!item || item.slot !== key) continue;
-    if (stats && !isItemUnlocked(item, stats)) continue;
-    next[key] = item.id;
+    const entry = findItem(raw);
+    if (!entry || entry.slot !== key) continue;
+    if (stats && !isItemUnlocked(entry, stats)) continue;
+    next[key] = entry.id;
   }
   return next;
 }
@@ -252,15 +448,22 @@ export function avatarStatsFrom(input: {
   solved: number;
   categoryLessons: Record<string, number>;
 }): AvatarStats {
+  // 잘못 저장된 값(음수, 전체보다 큰 완료 수 등)이 들어와도 계산이 깨지지 않게 다듬습니다.
+  const safe = (value: number, min: number) =>
+    Number.isFinite(value) ? Math.max(min, Math.floor(value)) : min;
+  const lessons: Record<string, number> = {};
+  for (const [name, value] of Object.entries(input.categoryLessons || {})) {
+    lessons[name] = Math.min(12, safe(value, 0));
+  }
   return {
-    xp: Math.max(0, Math.floor(input.xp || 0)),
-    level: Math.max(1, Math.floor(input.level || 1)),
-    streak: Math.max(0, Math.floor(input.streak || 0)),
-    solved: Math.max(0, Math.floor(input.solved || 0)),
-    categoryLessons: input.categoryLessons || {},
+    xp: safe(input.xp, 0),
+    level: safe(input.level, 1),
+    streak: safe(input.streak, 0),
+    solved: safe(input.solved, 0),
+    categoryLessons: lessons,
   };
 }
 
 export function unlockedCount(stats: AvatarStats) {
-  return AVATAR_ITEMS.filter((item) => isItemUnlocked(item, stats)).length;
+  return AVATAR_ITEMS.filter((entry) => isItemUnlocked(entry, stats)).length;
 }
