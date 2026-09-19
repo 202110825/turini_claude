@@ -7,9 +7,11 @@ import {
   AVATAR_ITEMS,
   AVATAR_SLOTS,
   CONTENT_BOX,
+  ITEM_COLOR,
   DEFAULT_CUSTOMIZATION,
   LAYER_ORDER,
   SLOT_ANCHOR,
+  itemColor,
   assetPath,
   avatarStatsFrom,
   bagStrapColor,
@@ -352,4 +354,41 @@ test("액세서리 묶음은 프레임 기준점을 그대로 따라간다", () 
   assert.match(spriteSource, /transformOrigin/);
   assert.match(spriteSource, /rotate\(\$\{rotate\}deg\)/);
   assert.match(spriteStyle, /\.turini-sprite__head/);
+});
+
+/* ──────────────────────────────────────────────────────────────
+   그림 파일이 빠져도 화면이 비지 않아야 합니다.
+   ────────────────────────────────────────────────────────────── */
+
+test("webp 가 없을 때 png 로 되돌아갈 수 있어야 한다 (picture 태그 금지)", async () => {
+  // <picture><source webp><img png></picture> 는 브라우저가 webp 를 고른 뒤
+  // 그 파일이 없어도 png 로 되돌아가지 않습니다. 압축 해제가 덜 된 환경에서
+  // 그림이 통째로 사라지는 원인이라 쓰지 않습니다.
+  for (const file of ["turini-avatar.tsx", "turini-rig.tsx", "turini-sprite.tsx"]) {
+    const source = await readFile(new URL(`../app/${file}`, import.meta.url), "utf8");
+    assert.ok(!/<picture[\s>]/.test(source), `${file} 에 <picture> 가 남아 있습니다`);
+    assert.ok(!/<source[\s>]/.test(source), `${file} 에 <source> 가 남아 있습니다`);
+    assert.match(source, /SafeImage/, `${file} 이 SafeImage 를 쓰지 않습니다`);
+  }
+  const safe = await readFile(new URL("../app/safe-image.tsx", import.meta.url), "utf8");
+  // 실패하면 다음 후보로 넘어가고, 다 떨어지면 대체 표시를 내놓습니다.
+  assert.match(safe, /onError/);
+  assert.match(safe, /index >= sources\.length/);
+});
+
+test("모든 아이템에 대표 색이 있어 그림이 없어도 구분된다", () => {
+  for (const item of AVATAR_ITEMS) {
+    const color = ITEM_COLOR[item.id];
+    assert.ok(color, `${item.id} 의 대표 색이 없습니다`);
+    assert.match(color, /^#[0-9a-f]{6}$/, `${item.id} 의 색 형식이 잘못됐습니다`);
+  }
+  // 모르는 id 가 들어와도 색은 항상 나옵니다.
+  assert.match(itemColor("hat:없는모자"), /^#[0-9a-f]{6}$/);
+  assert.match(itemColor(null), /^#[0-9a-f]{6}$/);
+});
+
+test("기본 상태에서는 배경 없이 캐릭터만 보여 준다", () => {
+  assert.equal(DEFAULT_CUSTOMIZATION.background, null);
+  // 배경 그림을 못 읽으면 자리표시자 대신 아무것도 그리지 않습니다.
+  assert.match(avatarSource, /item\.slot === "background" \? null/);
 });

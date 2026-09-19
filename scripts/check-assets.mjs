@@ -24,8 +24,17 @@ const EXPECTED = [
   ["assets/turini/customization/glasses", 9, "안경"],
   ["assets/turini/customization/neck", 9, "목 액세서리"],
   ["assets/turini/customization/bags", 9, "가방"],
+  ["assets/turini/optimized/customization/hats", 9, "모자 (가벼운 사본)"],
+  ["assets/turini/optimized/customization/glasses", 9, "안경 (가벼운 사본)"],
+  ["assets/turini/optimized/customization/neck", 9, "목 액세서리 (가벼운 사본)"],
+  ["assets/turini/optimized/customization/bags", 9, "가방 (가벼운 사본)"],
   ["assets/turini/backgrounds", 4, "배경"],
   ["assets/turini/optimized/backgrounds", 4, "배경 (가벼운 사본)"],
+  ["assets/turini/optimized/worn/hats", 9, "모자 착용 미리보기 (가벼운 사본)"],
+  ["assets/turini/optimized/worn/glasses", 9, "안경 착용 미리보기 (가벼운 사본)"],
+  ["assets/turini/optimized/worn/neck", 9, "목 액세서리 착용 미리보기 (가벼운 사본)"],
+  ["assets/turini/optimized/worn/bags", 9, "가방 착용 미리보기 (가벼운 사본)"],
+  ["assets/turini/optimized/turnaround", 3, "정면·3/4·뒷면 (가벼운 사본)"],
   ["assets/turini/worn/hats", 9, "모자 착용 미리보기"],
   ["assets/turini/worn/glasses", 9, "안경 착용 미리보기"],
   ["assets/turini/worn/neck", 9, "목 액세서리 착용 미리보기"],
@@ -65,5 +74,8 @@ if (problems === 0) {
   console.log(`${problems}곳에 문제가 있습니다.`);
   console.log("압축을 풀 때 일부 파일이 빠진 것으로 보입니다.");
   console.log("빈 폴더를 새로 만들고 zip 을 다시 풀어 주세요. (기존 폴더에 덮어쓰지 마세요)");
+  console.log("");
+  console.log("참고: '가벼운 사본'만 없는 경우에는 원본 그림으로 자동 대체되므로");
+  console.log("      화면은 정상으로 보입니다. 다만 파일 크기가 커서 조금 느려집니다.");
   process.exitCode = 1;
 }
