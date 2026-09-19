@@ -2,12 +2,10 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Turini from "./turini-character";
-import SafeImage from "./safe-image";
 import {
   LAYER_ORDER,
   bagStrapColor,
   findItem,
-  itemColor,
   placementFor,
   assetPath,
   assetPathWebp,
@@ -75,18 +73,23 @@ function Layer({
   onMissing?: () => void;
 }) {
   return (
-    <span className={`turini-rig__layer ${className ?? ""}`.trim()} style={style}>
-      <SafeImage
-        sources={[`${RIG_WEBP}/${part}.webp`, `${RIG}/${part}.png`]}
-        eager
-        onExhausted={onMissing}
+    <picture className={`turini-rig__layer ${className ?? ""}`.trim()} style={style}>
+      <source srcSet={`${RIG_WEBP}/${part}.webp`} type="image/webp" />
+      <img
+        src={`${RIG}/${part}.png`}
+        alt=""
+        draggable={false}
+        decoding="async"
+        onError={onMissing}
       />
-    </span>
+    </picture>
   );
 }
 
 function Piece({ item }: { item: AvatarItem }) {
+  const [failed, setFailed] = useState(false);
   const place = placementFor(item);
+  if (failed) return null;
   return (
     <span
       className="turini-rig__piece"
@@ -98,14 +101,16 @@ function Piece({ item }: { item: AvatarItem }) {
         zIndex: LAYER_ORDER[item.slot],
       }}
     >
-      <SafeImage
-        sources={[assetPathWebp(item.slot, item.file), assetPath(item.slot, item.file)]}
-        eager
-        // 그림이 없어도 착용한 자리를 색으로 보여 줍니다 (아무 반응이 없어 보이지 않도록)
-        fallback={
-          <span className="turini-rig__swatch" style={{ background: itemColor(item.id) }} />
-        }
-      />
+      <picture>
+        <source srcSet={assetPathWebp(item.slot, item.file)} type="image/webp" />
+        <img
+          src={assetPath(item.slot, item.file)}
+          alt=""
+          draggable={false}
+          decoding="async"
+          onError={() => setFailed(true)}
+        />
+      </picture>
     </span>
   );
 }

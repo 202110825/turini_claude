@@ -6,12 +6,10 @@ import {
   assetPath,
   assetPathWebp,
   findItem,
-  itemColor,
   placementFor,
   type AvatarItem,
   type TuriniCustomization,
 } from "./avatar-items";
-import SafeImage from "./safe-image";
 
 /**
  * 투리니 12프레임 스프라이트
@@ -144,20 +142,25 @@ export function loadFrameAnchors(): Promise<AnchorFile | null> {
 
 /** 액세서리 한 개 — 프레임 좌표계(한 칸 256px) 안에 놓습니다 */
 function SpritePiece({ item }: { item: AvatarItem }) {
+  const [failed, setFailed] = useState(false);
   const place = placementFor(item, "sprite");
+  if (failed) return null;
   return (
     <span
       className="turini-sprite__piece"
       data-slot={item.slot}
       style={{ left: `${place.left}%`, top: `${place.top}%`, width: `${place.size}%` }}
     >
-      <SafeImage
-        sources={[assetPathWebp(item.slot, item.file), assetPath(item.slot, item.file)]}
-        eager
-        fallback={
-          <span className="turini-rig__swatch" style={{ background: itemColor(item.id) }} />
-        }
-      />
+      <picture>
+        <source srcSet={assetPathWebp(item.slot, item.file)} type="image/webp" />
+        <img
+          src={assetPath(item.slot, item.file)}
+          alt=""
+          draggable={false}
+          decoding="async"
+          onError={() => setFailed(true)}
+        />
+      </picture>
     </span>
   );
 }

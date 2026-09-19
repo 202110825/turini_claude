@@ -88,6 +88,7 @@
   display: block;
   aspect-ratio: 1 / 1;
 }
+.turini-sprite__piece picture,
 .turini-sprite__piece img {
   display: block;
   width: 100%;
