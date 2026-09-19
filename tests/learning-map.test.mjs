@@ -8,6 +8,7 @@ import {
   categoryDifficultyForLesson,
   categoryLevelForSolved,
   completedCategoryLessonsForSolved,
+  bandEntryLesson,
 } from "../app/category-progress.ts";
 
 const mapSource = await readFile(new URL("../app/learning-map.tsx", import.meta.url), "utf8");
@@ -83,12 +84,44 @@ test("여섯 카테고리 모두 지도 배경과 색상이 정의돼 있다", (
   assert.match(pageSource, /data-map-theme=\{activeCategory\.color\}/);
 });
 
-test("완료·현재·잠금 노드가 서로 다르게 표시된다", () => {
+test("완료·현재·잠금 단계가 서로 다르게 표시된다", () => {
   assert.match(mapStyle, /\[data-state="done"\]/);
   assert.match(mapStyle, /\[data-state="current"\]/);
   assert.match(mapStyle, /\[data-state="locked"\]/);
   assert.match(mapSource, /turini-map__star/);
   assert.match(mapSource, /turini-map__lock/);
+});
+
+test("듀오링고식 원형 징검다리가 아니라 세로 카드 로드맵이다", () => {
+  // 좌우로 흔들리는 곡선 경로·원형 노드 배치 코드가 남아 있으면 안 됩니다.
+  assert.doesNotMatch(mapSource, /smoothPath|SWAY|turini-map__trail|turini-map__stop\b/);
+  assert.doesNotMatch(mapSource, /Math\.sin/);
+  assert.doesNotMatch(mapStyle, /turini-map__trail/);
+  // 세로 타임라인과 직사각형 카드
+  assert.match(mapSource, /turini-road__track/);
+  assert.match(mapSource, /turini-road__step/);
+  assert.match(mapSource, /turini-road__card/);
+  assert.match(mapStyle, /\.turini-road__line/);
+  // 카드는 원이 아니라 사각형(모서리만 둥글게)입니다.
+  assert.match(mapStyle, /\.turini-road__card \{[^}]*border-radius: 18px/s);
+});
+
+test("난이도 구간을 눌러 이동하는 고정 탭이 있다", () => {
+  assert.match(mapSource, /jumpToBand/);
+  assert.match(mapSource, /turini-map__legend-tab/);
+  assert.match(mapSource, /focusDifficulty/);
+  assert.match(mapStyle, /\.turini-map__legend \{[^}]*position: sticky/s);
+  // 난이도 선택 화면에서 고른 구간으로 자동 이동합니다.
+  assert.match(mapSource, /bandEntryLesson\(focusDifficulty, completedLessons, totalLessons\)/);
+  assert.match(mapSource, /scrollIntoView/);
+});
+
+test("난이도 선택 화면이 카테고리와 로드맵 사이에 들어간다", () => {
+  assert.match(pageSource, /view === "difficulty"/);
+  assert.match(pageSource, /onClick=\{\(\) => openDifficulty\(category\.name\)\}/);
+  assert.match(pageSource, /focusDifficulty=\{focusDifficulty\}/);
+  // 세 난이도는 여전히 하나로 이어진 12단계 경로를 공유합니다.
+  assert.match(pageSource, /totalLessons=\{MAX_CATEGORY_LEVEL\}/);
 });
 
 test("현재 레슨 카드에 제목·문제 수·XP·시작 버튼이 모두 있다", () => {
@@ -108,4 +141,16 @@ test("옛 번호 나열 경로는 더 이상 쓰지 않는다", () => {
   assert.doesNotMatch(pageSource, /className="learning-path"/);
   assert.doesNotMatch(pageSource, /path-node/);
   assert.match(pageSource, /<LearningMap/);
+});
+
+test("난이도 구간 진입 레슨은 이미 지난 곳을 건너뛴다", () => {
+  // 초급 1-4 / 중급 5-8 / 고급 9-12
+  assert.equal(bandEntryLesson("초급", 0, MAX_CATEGORY_LEVEL), 1);
+  assert.equal(bandEntryLesson("초급", 2, MAX_CATEGORY_LEVEL), 3);
+  // 이미 그 구간을 다 지났으면 구간의 마지막 레슨에 멈춥니다.
+  assert.equal(bandEntryLesson("초급", 9, MAX_CATEGORY_LEVEL), 4);
+  assert.equal(bandEntryLesson("중급", 0, MAX_CATEGORY_LEVEL), 5);
+  assert.equal(bandEntryLesson("중급", 6, MAX_CATEGORY_LEVEL), 7);
+  assert.equal(bandEntryLesson("고급", 11, MAX_CATEGORY_LEVEL), 12);
+  assert.equal(bandEntryLesson("고급", 12, MAX_CATEGORY_LEVEL), 12);
 });

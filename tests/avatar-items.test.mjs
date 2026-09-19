@@ -1,26 +1,35 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import test from "node:test";
 
 import {
-  AVATAR_ANCHORS,
   AVATAR_ITEMS,
-  AVATAR_LAYOUT,
   AVATAR_SLOTS,
-  DEFAULT_AVATAR,
-  KEEP_CLEAR,
+  CONTENT_BOX,
+  DEFAULT_CUSTOMIZATION,
+  LAYER_ORDER,
+  SLOT_ANCHOR,
+  assetPath,
   avatarStatsFrom,
+  bagStrapColor,
   findItem,
   isItemUnlocked,
   itemsForSlot,
-  normalizeAvatar,
+  normalizeCustomization,
+  placementFor,
+  remainingLabel,
   requirementLabel,
   requirementProgress,
-  slotRect,
+  wornPreview,
 } from "../app/avatar-items.ts";
 
 const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const avatarSource = await readFile(new URL("../app/turini-avatar.tsx", import.meta.url), "utf8");
+const rigSource = await readFile(new URL("../app/turini-rig.tsx", import.meta.url), "utf8");
+const rigStyle = await readFile(new URL("../app/turini-rig.css", import.meta.url), "utf8");
+
+const publicPath = (url) => new URL(`../public${url}`, import.meta.url);
 
 const emptyStats = avatarStatsFrom({ xp: 0, level: 1, streak: 0, solved: 0, categoryLessons: {} });
 const fullStats = avatarStatsFrom({
@@ -29,31 +38,60 @@ const fullStats = avatarStatsFrom({
   streak: 40,
   solved: 720,
   categoryLessons: {
-    주식: 12,
-    채권: 12,
-    "펀드/ETF": 12,
-    "위험 관리": 12,
-    "분산 투자": 12,
-    "수익률 계산": 12,
+    주식: 12, 채권: 12, "펀드/ETF": 12, "위험 관리": 12, "분산 투자": 12, "수익률 계산": 12,
   },
 });
 
-test("여섯 가지 슬롯이 모두 있고 아이템이 한 슬롯에만 속한다", () => {
+/* ── 슬롯 ─────────────────────────────────────────────── */
+
+test("영구 꾸미기 슬롯은 다섯 개이고 손소품은 없다", () => {
   assert.deepEqual(
     AVATAR_SLOTS.map((slot) => slot.key),
-    ["hat", "glasses", "neck", "bag", "prop", "scene"],
+    ["hat", "glasses", "neck", "bag", "background"],
   );
+  assert.ok(!AVATAR_SLOTS.some((slot) => slot.key === "handProp"));
+  assert.ok(!AVATAR_ITEMS.some((item) => item.slot === "handProp"));
+  assert.ok(!("handProp" in DEFAULT_CUSTOMIZATION));
   for (const { key } of AVATAR_SLOTS) {
     assert.ok(itemsForSlot(key).length > 0, `${key} 슬롯에 아이템이 없습니다`);
   }
   const ids = AVATAR_ITEMS.map((item) => item.id);
   assert.equal(new Set(ids).size, ids.length, "아이템 id 가 중복됩니다");
-  for (const item of AVATAR_ITEMS) {
-    assert.ok(AVATAR_LAYOUT[item.slot], `${item.id} 의 슬롯 배치 규칙이 없습니다`);
-  }
 });
 
-test("모든 슬롯에 처음부터 쓸 수 있는 아이템이 하나씩 있다", () => {
+test("옛 저장값에 손소품이 남아 있어도 오류 없이 무시한다", () => {
+  const legacy = {
+    hat: "hat:green_cap",
+    glasses: null,
+    neck: null,
+    bag: null,
+    handProp: "handProp:gold_coin",
+    scene: "scene-night",
+    background: "background:study_room_day",
+  };
+  const safe = normalizeCustomization(legacy, fullStats);
+  assert.equal(safe.hat, "hat:green_cap");
+  assert.ok(!("handProp" in safe));
+  assert.ok(!("scene" in safe));
+  assert.equal(safe.background, "background:study_room_day");
+});
+
+test("저장값이 깨져도 기본값으로 안전하게 되돌린다", () => {
+  const dirty = { hat: "hat:wizard_hat", glasses: "없는-아이템", neck: 42, bag: "hat:green_cap" };
+  const safe = normalizeCustomization(dirty, emptyStats);
+  assert.equal(safe.hat, null, "아직 잠긴 모자가 들어왔습니다");
+  assert.equal(safe.glasses, null);
+  assert.equal(safe.neck, null);
+  assert.equal(safe.bag, null, "슬롯이 다른 아이템이 들어왔습니다");
+  assert.equal(safe.background, DEFAULT_CUSTOMIZATION.background);
+  assert.deepEqual(normalizeCustomization(undefined), DEFAULT_CUSTOMIZATION);
+  assert.deepEqual(normalizeCustomization(null), DEFAULT_CUSTOMIZATION);
+  assert.deepEqual(normalizeCustomization("이상한 값"), DEFAULT_CUSTOMIZATION);
+});
+
+/* ── 해제 조건 ─────────────────────────────────────────── */
+
+test("모든 슬롯에 처음부터 쓸 수 있는 아이템이 있다", () => {
   for (const { key } of AVATAR_SLOTS) {
     const free = itemsForSlot(key).filter((item) => isItemUnlocked(item, emptyStats));
     assert.ok(free.length >= 1, `${key} 슬롯에 기본 해제 아이템이 없습니다`);
@@ -66,7 +104,6 @@ test("해제 조건은 학습 기록에서만 계산한다", () => {
   for (const item of locked) {
     assert.ok(isItemUnlocked(item, fullStats), `${item.id} 은 끝까지 학습해도 열리지 않습니다`);
   }
-  // XP 조건은 XP 가 늘어나면 정확히 그 값에서 열립니다.
   const xpItem = AVATAR_ITEMS.find((item) => item.requirement.kind === "xp");
   const need = xpItem.requirement.value;
   const just = avatarStatsFrom({ xp: need, level: 1, streak: 0, solved: 0, categoryLessons: {} });
@@ -80,88 +117,153 @@ test("해제 진행도와 안내 문구가 조건과 맞는다", () => {
     const { current, target } = requirementProgress(item.requirement, emptyStats);
     assert.ok(Number.isFinite(current) && Number.isFinite(target));
     assert.ok(target >= 1);
-    const label = requirementLabel(item.requirement);
-    assert.ok(typeof label === "string" && label.length > 0);
+    assert.ok(requirementLabel(item.requirement).length > 0);
+    if (item.requirement.kind !== "always") {
+      assert.ok(remainingLabel(item.requirement, emptyStats).length > 0);
+    }
   }
-});
-
-test("저장 값은 알 수 없는 id 나 잠긴 아이템을 받아들이지 않는다", () => {
-  const dirty = { hat: "hat-graduate", glasses: "없는-아이템", neck: 42, bag: null, prop: "hat-coin", scene: "scene-night" };
-  const safe = normalizeAvatar(dirty, emptyStats);
-  assert.equal(safe.hat, null, "아직 잠긴 모자가 들어왔습니다");
-  assert.equal(safe.glasses, null);
-  assert.equal(safe.neck, null);
-  assert.equal(safe.bag, null);
-  assert.equal(safe.prop, null, "슬롯이 다른 아이템이 들어왔습니다");
-  // 배경은 항상 하나 있어야 하므로, 잠긴 값이 오면 기본 배경으로 되돌립니다.
-  assert.equal(safe.scene, DEFAULT_AVATAR.scene, "잠긴 배경이 기본값으로 돌아가지 않았습니다");
-
-  // 조건을 채우면 그대로 유지됩니다.
-  const kept = normalizeAvatar({ hat: "hat-graduate", scene: "scene-night" }, fullStats);
-  assert.equal(kept.hat, "hat-graduate");
-  assert.equal(kept.scene, "scene-night");
-
-  // 기록이 없으면 기본값을 돌려줍니다.
-  assert.deepEqual(normalizeAvatar(undefined), DEFAULT_AVATAR);
-  assert.deepEqual(normalizeAvatar(null), DEFAULT_AVATAR);
 });
 
 test("기본 착용은 처음부터 열려 있는 아이템만 쓴다", () => {
   for (const { key } of AVATAR_SLOTS) {
-    const id = DEFAULT_AVATAR[key];
+    const id = DEFAULT_CUSTOMIZATION[key];
     if (id === null) continue;
     const item = findItem(id);
     assert.ok(item, `${id} 를 찾을 수 없습니다`);
     assert.equal(item.slot, key);
-    assert.equal(isItemUnlocked(item, emptyStats), true, `${id} 가 처음부터 열려 있지 않습니다`);
+    assert.equal(isItemUnlocked(item, emptyStats), true);
   }
 });
 
-test("액세서리 자리가 귀·눈·입을 부자연스럽게 가리지 않는다", () => {
-  // 겹치는 넓이가 보호 영역의 몇 %인지 재서 판단합니다.
-  // 모자챙이 귀 끝에 살짝 닿는 정도는 자연스럽고, 귀를 삼켜 버리는 건 안 됩니다.
-  const coverRatio = (rect, keep) => {
-    const w = Math.max(0, Math.min(rect.left + rect.width, keep.left + keep.width) - Math.max(rect.left, keep.left));
-    const h = Math.max(0, Math.min(rect.top + rect.height, keep.top + keep.height) - Math.max(rect.top, keep.top));
-    return (w * h) / (keep.width * keep.height);
-  };
-  for (const { key } of AVATAR_SLOTS) {
-    if (key === "scene") continue;
-    const rect = slotRect(key);
-    assert.ok(rect.left >= 0 && rect.left + rect.width <= 100, `${key} 가 무대 밖으로 나갑니다`);
-    assert.ok(rect.top >= 0 && rect.top + rect.height <= 100, `${key} 가 무대 밖으로 나갑니다`);
+/* ── 그림 파일 ─────────────────────────────────────────── */
 
-    const ear = Math.max(coverRatio(rect, KEEP_CLEAR.earLeft), coverRatio(rect, KEEP_CLEAR.earRight));
-    assert.ok(ear <= 0.25, `${key} 가 귀를 ${Math.round(ear * 100)}% 나 가립니다`);
+test("모든 아이템의 그림 파일이 실제로 있다", () => {
+  for (const item of AVATAR_ITEMS) {
+    assert.ok(existsSync(publicPath(assetPath(item.slot, item.file))), `${item.id} 그림 없음`);
+  }
+});
 
-    const eyes = coverRatio(rect, KEEP_CLEAR.eyes);
-    if (key === "glasses") {
-      assert.ok(eyes > 0.5, "안경이 눈 위에 오지 않습니다");
-    } else {
-      assert.equal(eyes, 0, `${key} 가 눈을 가립니다`);
+test("착용 완성본은 목록·단일 미리보기에만 쓰고 겹쳐 조합하지 않는다", () => {
+  for (const item of AVATAR_ITEMS) {
+    const worn = wornPreview(item);
+    if (item.slot === "background") {
+      assert.equal(worn, null);
+      continue;
     }
+    assert.ok(existsSync(publicPath(worn.png)), `${item.id} 착용 완성본 없음`);
+  }
+  // 완성본을 여러 장 겹치는 코드가 없어야 합니다.
+  assert.doesNotMatch(rigSource, /wornPreview/);
+  // 여러 아이템을 함께 입은 모습은 리그로만 만듭니다.
+  assert.match(avatarSource, /TuriniRig/);
+});
 
-    assert.equal(coverRatio(rect, KEEP_CLEAR.mouth), 0, `${key} 가 입을 가립니다`);
+/* ── 배치 (리그 앵커) ──────────────────────────────────── */
+
+test("액세서리는 머리 그룹 안에 있어 고개 움직임을 따라간다", () => {
+  // 모자·안경·목장식은 머리 레이어와 같은 묶음 안에서 그립니다.
+  assert.match(rigSource, /turini-rig__head/);
+  assert.match(rigSource, /headPieces\.map/);
+  // 가방 본체는 몸통보다 아래 층입니다 → 몸 앞으로 나올 수 없습니다.
+  assert.ok(LAYER_ORDER.bag < LAYER_ORDER.base);
+  assert.match(rigStyle, /\.turini-rig__bag\s*\{[^}]*z-index: 1/s);
+  assert.match(rigStyle, /\.turini-rig__body\s*\{[^}]*z-index: 2/s);
+  // 어깨끈은 몸통 위·팔 아래
+  assert.match(rigStyle, /\.turini-rig__straps\s*\{[^}]*z-index: 3/s);
+  assert.match(rigStyle, /\.turini-rig__arm\s*\{[^}]*z-index: 4/s);
+  // 관절 좌표는 rig.json 값을 그대로 씁니다.
+  assert.match(rigSource, /transformOrigin/);
+});
+
+test("아이템은 칸이 아니라 그림 자체를 기준점에 맞춘다", () => {
+  for (const item of AVATAR_ITEMS) {
+    if (item.slot === "background") continue;
+    assert.ok(CONTENT_BOX[item.id], `${item.id} 그림 범위 정보 없음`);
+  }
+  // 칸 여백이 서로 다른 두 모자도 같은 자리에 옵니다.
+  const hats = itemsForSlot("hat").map((item) => ({ item, place: placementFor(item) }));
+  const bottoms = hats.map(({ item, place }) => {
+    const [, , , y1] = CONTENT_BOX[item.id];
+    return Math.round((place.top + y1 * place.size) * 100) / 100;
+  });
+  const spread = Math.max(...bottoms) - Math.min(...bottoms);
+  assert.ok(spread < 0.2, `모자 아랫선이 ${spread}%p 나 어긋납니다`);
+
+  const widths = hats.map(({ item, place }) => {
+    const [x0, , x1] = CONTENT_BOX[item.id];
+    return Math.round((x1 - x0) * place.size * 100) / 100;
+  });
+  assert.ok(Math.max(...widths) - Math.min(...widths) < 0.2, "모자 너비가 제각각입니다");
+});
+
+test("어떤 아이템도 무대 밖으로 나가지 않는다", () => {
+  // 리그 캔버스는 무대 안쪽 3% 여백에 들어 있습니다.
+  const toStage = (value) => 4 + 0.92 * (3 + 0.94 * value);
+  for (const item of AVATAR_ITEMS) {
+    if (item.slot === "background") continue;
+    const place = placementFor(item);
+    const [x0, y0, x1, y1] = CONTENT_BOX[item.id];
+    const left = toStage(place.left + x0 * place.size);
+    const right = toStage(place.left + x1 * place.size);
+    const top = toStage(place.top + y0 * place.size);
+    const bottom = toStage(place.top + y1 * place.size);
+    assert.ok(left >= 0 && right <= 100, `${item.id} 가로가 무대를 벗어납니다 (${left}~${right})`);
+    assert.ok(top >= 0 && bottom <= 100, `${item.id} 세로가 무대를 벗어납니다 (${top}~${bottom})`);
   }
 });
 
-test("기준점은 한 곳에서만 관리하고 % 좌표를 쓴다", () => {
-  for (const [name, point] of Object.entries(AVATAR_ANCHORS)) {
-    assert.ok(point.x > 0 && point.x < 100, `${name} 기준점 x 가 범위를 벗어납니다`);
-    assert.ok(point.y > 0 && point.y < 100, `${name} 기준점 y 가 범위를 벗어납니다`);
+test("안경은 두 눈 위에 오고 어떤 아이템도 입을 덮지 않는다", () => {
+  // 리그 캔버스(1200) 기준 실측 좌표
+  const EYES = { top: 393 / 1200 * 100, bottom: 529 / 1200 * 100 };
+  const MOUTH_TOP = 523 / 1200 * 100;
+  for (const item of AVATAR_ITEMS) {
+    if (item.slot === "background") continue;
+    const place = placementFor(item);
+    const [, y0, , y1] = CONTENT_BOX[item.id];
+    const top = place.top + y0 * place.size;
+    const bottom = place.top + y1 * place.size;
+    if (item.slot === "hat") {
+      assert.ok(bottom <= EYES.top + 0.5, `${item.id} 가 눈을 덮습니다`);
+    }
+    if (item.slot === "glasses") {
+      assert.ok(top <= EYES.top + 3, `${item.id} 가 눈보다 너무 아래에 있습니다`);
+      assert.ok(bottom <= MOUTH_TOP, `${item.id} 가 입까지 내려옵니다`);
+    }
+    if (item.slot === "neck") {
+      assert.ok(top >= MOUTH_TOP, `${item.id} 가 턱 위로 올라옵니다`);
+    }
   }
-  assert.match(avatarSource, /AVATAR_ANCHORS/);
-  // 화면 컴포넌트가 좌표를 따로 들고 있으면 안 됩니다.
-  assert.doesNotMatch(avatarSource, /const\s+ANCHORS\s*=/);
+  assert.ok(SLOT_ANCHOR.glasses.spanY, "안경 세로 제한이 없습니다");
 });
 
-test("꾸미기 상태는 계정 기록(progress)에 저장되고 localStorage 를 쓰지 않는다", () => {
-  assert.match(pageSource, /avatar: TuriniAvatar/);
-  assert.match(pageSource, /avatar: DEFAULT_AVATAR/);
-  assert.match(pageSource, /avatar: normalizeAvatar\(savedProgress\.avatar\)/);
-  assert.match(pageSource, /setProgress\(\(current\) => \(\{ \.\.\.current, avatar: next \}\)\)/);
+test("가방마다 어깨끈 색이 정해져 있다", () => {
+  for (const item of itemsForSlot("bag")) {
+    assert.match(bagStrapColor(item.id), /^#[0-9a-f]{6}$/i, `${item.id} 끈 색 없음`);
+  }
+  assert.match(bagStrapColor(null), /^#[0-9a-f]{6}$/i);
+});
+
+/* ── 저장과 화면 연결 ──────────────────────────────────── */
+
+test("꾸미기 상태는 계정 기록에 저장되고 화면 코드는 localStorage 를 직접 쓰지 않는다", () => {
+  assert.match(pageSource, /customization: TuriniCustomization/);
+  assert.match(pageSource, /customization: DEFAULT_CUSTOMIZATION/);
+  assert.match(pageSource, /normalizeCustomization\(/);
+  assert.match(pageSource, /setProgress\(\(current\) => \(\{ \.\.\.current, customization: next \}\)\)/);
   assert.match(pageSource, /fetch\("\/api\/account"/);
   assert.doesNotMatch(pageSource, /localStorage\.setItem/);
+  // 브라우저 캐시는 저장소 모듈 한 곳에서만 다룹니다.
+  assert.match(pageSource, /saveCustomizationCache\(/);
+});
+
+test("앱 전체가 하나의 공통 캐릭터 컴포넌트를 쓴다", () => {
+  assert.match(pageSource, /TuriniAvatarProvider/);
+  assert.match(avatarSource, /useCustomization/);
+  // 화면에서 캐릭터 이미지를 직접 불러오는 곳이 없어야 합니다.
+  assert.doesNotMatch(pageSource, /<img[^>]*turini/i);
+  assert.doesNotMatch(pageSource, /assets\/turini/);
+  const uses = pageSource.match(/<TuriniAvatar/g) || [];
+  assert.ok(uses.length >= 12, `공통 컴포넌트 사용처가 ${uses.length}곳뿐입니다`);
 });
 
 test("기존 프로필 정보와 계정 기능은 그대로 남아 있다", () => {
@@ -174,18 +276,8 @@ test("기존 프로필 정보와 계정 기능은 그대로 남아 있다", () =
   assert.match(pageSource, /아이디와 기록 모두 삭제/);
 });
 
-test("실제 그림이 없는 아이템은 개발 확인용으로 표시한다", () => {
-  const dressUp = AVATAR_ITEMS.filter((item) => item.slot !== "scene");
-  assert.ok(dressUp.every((item) => item.placeholder === true), "임시 도형 표시가 빠진 아이템이 있습니다");
-  assert.ok(
-    AVATAR_ITEMS.filter((item) => item.slot === "scene").every((item) => item.placeholder === false),
-    "배경은 색만 쓰므로 임시가 아닙니다",
-  );
-  assert.match(avatarSource, /개발 확인용/);
-});
-
 test("결제 기능은 들어 있지 않다", () => {
-  for (const source of [avatarSource, pageSource]) {
+  for (const source of [avatarSource, rigSource, pageSource]) {
     assert.doesNotMatch(source, /결제|구매하기|price|checkout|payment/i);
   }
 });

@@ -37,7 +37,7 @@ test("정답은 체크 팻말 줄, 오답은 X 팻말 줄을 쓰고 다른 캐�
   assert.match(componentSource, /wrong:\s*3/);
   assert.match(componentSource, /초록색 체크 팻말을 든 투리니/);
   assert.match(componentSource, /빨간색 X 팻말을 든 투리니/);
-  assert.match(pageSource, /state=\{answerCorrect \? "correct" : "wrong"\}/);
+  assert.match(pageSource, /motion=\{answerCorrect \? "correct" : "wrong"\}/);
 });
 
 test("기본 상태는 3~6초 간격의 불규칙한 눈 깜박임을 쓴다", () => {
