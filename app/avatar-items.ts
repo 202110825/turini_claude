@@ -215,6 +215,59 @@ export function bagStrapColor(id: string | null | undefined) {
   return (id && BAG_STRAP_COLOR[id]) || "#8a8f8c";
 }
 
+/**
+ * 아이템을 대표하는 색 — 실제 그림에서 가장 넓게 쓰인 색을 뽑아 적어 둔 표입니다.
+ *
+ * 그림 파일이 하나라도 없을 때 빈 칸 대신 이 색을 보여 줍니다. 목록에서
+ * 어떤 아이템인지 구분할 수 있고, 눌러서 착용하는 동작도 그대로 됩니다.
+ */
+export const ITEM_COLOR: Record<string, string> = {
+  "hat:chef_hat": "#ebe5e4",
+  "hat:explorer_hat": "#a86433",
+  "hat:gold_crown": "#eca10b",
+  "hat:graduation_cap": "#182355",
+  "hat:green_cap": "#3b9934",
+  "hat:red_beanie": "#b70c11",
+  "hat:straw_hat": "#f8c86c",
+  "hat:wizard_hat": "#632bbb",
+  "hat:yellow_bucket": "#f9cc34",
+  "glasses:black_square": "#252424",
+  "glasses:blue_sport": "#035ef2",
+  "glasses:gold_round": "#b36d0b",
+  "glasses:green_round": "#2bb328",
+  "glasses:heart_sunglasses": "#f20f17",
+  "glasses:monocle": "#b66b04",
+  "glasses:red_reading": "#e31113",
+  "glasses:safety_goggles": "#b9b9bf",
+  "glasses:star_glasses": "#f5ac03",
+  "neck:blue_scarf": "#0c5abd",
+  "neck:camera": "#6c2e15",
+  "neck:flower_lei": "#f33f53",
+  "neck:gold_medal": "#e8a30f",
+  "neck:green_bow": "#40a02f",
+  "neck:pearl_necklace": "#e3c8a8",
+  "neck:red_tie": "#f02e2b",
+  "neck:white_green_collar": "#37972d",
+  "neck:yellow_bandana": "#f4ad0f",
+  "bag:black_business": "#3a393a",
+  "bag:green_original": "#55b136",
+  "bag:mint_bubble": "#63bea6",
+  "bag:navy_school": "#1b2e5f",
+  "bag:pink_heart": "#f47da8",
+  "bag:purple_star": "#7030ba",
+  "bag:red_hiking": "#c02722",
+  "bag:tan_explorer": "#985429",
+  "bag:yellow_giraffe": "#f6cc2d",
+  "background:finance_city": "#f0dcc0",
+  "background:forest_class": "#af9159",
+  "background:goal_room_night": "#a77350",
+  "background:study_room_day": "#ead0a9",
+};
+
+export function itemColor(id: string | null | undefined) {
+  return (id && ITEM_COLOR[id]) || "#9fb0a7";
+}
+
 export type Placement = { left: number; top: number; size: number };
 
 /**
@@ -441,7 +494,8 @@ export const DEFAULT_CUSTOMIZATION: TuriniCustomization = {
   glasses: null,
   neck: null,
   bag: null,
-  background: "background:study_room_day",
+  // 기본은 배경 없이 캐릭터만 보여 줍니다. 배경은 꾸미기에서 직접 고를 때만 켜집니다.
+  background: null,
 };
 
 /**

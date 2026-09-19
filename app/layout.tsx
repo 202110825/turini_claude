@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+// turini-sprite.css 를 먼저 두면, 자리별 크기를 정하는 turini-character.css 의
+// `.turini-quiz` 같은 규칙이 스프라이트의 기본 폭보다 우선합니다.
+import "./turini-sprite.css";
+import "./turini-rig.css";
 import "./turini-character.css";
-import "./commercial-ui.css";
+import "./learning-map.css";
+import "./turini-avatar.css";
+import "./difficulty-select.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

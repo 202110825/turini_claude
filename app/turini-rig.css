@@ -47,7 +47,6 @@
 .turini-rig__piece {
   aspect-ratio: 1 / 1;
 }
-.turini-rig__piece picture,
 .turini-rig__piece img {
   display: block;
   width: 100%;

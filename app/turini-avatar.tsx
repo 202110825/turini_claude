@@ -3,6 +3,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import TuriniRig from "./turini-rig";
 import TuriniSprite, { type TuriniMotion } from "./turini-sprite";
+import SafeImage from "./safe-image";
 import {
   AVATAR_ITEMS,
   DEFAULT_CUSTOMIZATION,
@@ -14,6 +15,7 @@ import {
   assetPathWebp,
   findItem,
   isItemUnlocked,
+  itemColor,
   itemsForSlot,
   remainingLabel,
   requirementLabel,
@@ -155,36 +157,38 @@ function ItemImage({
   eager?: boolean;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return <span className={`turini-dress__missing ${className}`.trim()} aria-hidden="true" />;
-  }
   return (
-    <picture>
-      <source srcSet={assetPathWebp(item.slot, item.file)} type="image/webp" />
-      <img
-        className={className}
-        src={assetPath(item.slot, item.file)}
-        alt={alt}
-        loading={eager ? "eager" : "lazy"}
-        decoding={eager ? "sync" : "async"}
-        draggable={false}
-        onError={() => setFailed(true)}
-      />
-    </picture>
+    <SafeImage
+      sources={[assetPathWebp(item.slot, item.file), assetPath(item.slot, item.file)]}
+      alt={alt}
+      className={className}
+      eager={eager}
+      // 배경 그림이 없으면 아무것도 그리지 않습니다 — 캐릭터만 보이게 둡니다.
+      fallback={item.slot === "background" ? null : <ItemSwatch item={item} />}
+    />
+  );
+}
+
+/** 그림 파일이 없을 때 대신 보여 주는 색 — 어떤 아이템인지 구분되고, 착용도 그대로 됩니다 */
+function ItemSwatch({ item }: { item: AvatarItem }) {
+  return (
+    <span
+      className="turini-dress__swatch"
+      style={{ background: itemColor(item.id) }}
+      aria-hidden="true"
+    />
   );
 }
 
 /** 목록 썸네일 — 그 아이템 하나를 실제로 착용한 완성본을 씁니다 */
 function WornThumb({ item }: { item: AvatarItem }) {
-  const [failed, setFailed] = useState(false);
   const worn = wornPreview(item);
-  if (!worn || failed) return <ItemImage item={item} />;
+  if (!worn) return <ItemImage item={item} />;
   return (
-    <picture>
-      <source srcSet={worn.thumb} type="image/webp" />
-      <img src={worn.png} alt="" loading="lazy" decoding="async" draggable={false} onError={() => setFailed(true)} />
-    </picture>
+    <SafeImage
+      sources={[worn.thumb, worn.png]}
+      fallback={<ItemImage item={item} />}
+    />
   );
 }
 
@@ -193,29 +197,26 @@ function WornThumb({ item }: { item: AvatarItem }) {
    ────────────────────────────────────────────────────────────── */
 
 function TurnaroundView({ view, bag }: { view: TurniView; bag: AvatarItem | null }) {
-  const [failed, setFailed] = useState(false);
   // 3/4 후면은 "그 가방 하나를 멘" 완성본이 있으면 그걸 씁니다.
   const worn = view === "three-quarter-rear" && bag ? wornPreview(bag) : null;
-  if (worn && !failed) {
-    return (
-      <picture className="turini-dress__turn">
-        <source srcSet={worn.webp} type="image/webp" />
-        <img src={worn.png} alt="" decoding="async" draggable={false} onError={() => setFailed(true)} />
-      </picture>
-    );
-  }
-  return (
+  const plain = (
     <span className="turini-dress__turn">
-      <picture>
-        <source srcSet={TURNAROUND_WEBP[view]} type="image/webp" />
-        <img src={TURNAROUND[view]} alt="" decoding="async" draggable={false} />
-      </picture>
+      <SafeImage sources={[TURNAROUND_WEBP[view], TURNAROUND[view]]} eager />
       {bag && view === "back" ? (
         <span className="turini-dress__turn-bag">
           <ItemImage item={bag} eager />
         </span>
       ) : null}
     </span>
+  );
+  if (!worn) return plain;
+  return (
+    <SafeImage
+      sources={[worn.webp, worn.png]}
+      className="turini-dress__turn"
+      eager
+      fallback={plain}
+    />
   );
 }
 
