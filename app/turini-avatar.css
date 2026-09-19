@@ -49,6 +49,7 @@
 
 /* 자리별 크기 — 배경이 있는 무대는 정사각형 카드라 따로 잡습니다 */
 .turini-avatar--editor { width: min(320px, 100%); margin: 0 auto; }
+.turini-avatar--editor .turini-rig__canvas { inset: 7%; }
 .turini-avatar--card { width: 64px; border-radius: 16px; }
 .profile-mascot-frame .turini-avatar { width: 142px; border-radius: 20px; }
 .hero-mascot .turini-avatar { width: 172px; border-radius: 22px; }

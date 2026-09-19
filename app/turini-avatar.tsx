@@ -5,6 +5,7 @@ import TuriniRig from "./turini-rig";
 import TuriniSprite, { type TuriniMotion } from "./turini-sprite";
 import {
   AVATAR_ITEMS,
+  BASE_CUSTOMIZATION,
   DEFAULT_CUSTOMIZATION,
   AVATAR_SLOTS,
   TURNAROUND,
@@ -29,23 +30,17 @@ import {
 /**
  * 앱 전체가 쓰는 하나의 캐릭터 컴포넌트.
  *
- * - `motion="idle"` : 레이어 리그로 그립니다. 저장한 모자·안경·목장식·가방이
- *   모두 반영되고, 고개·몸통이 움직이면 액세서리도 함께 움직입니다.
- * - 그 밖의 동작(생각·정답·오답·축하·읽기) : 미리 만들어 둔 12프레임 스프라이트를
- *   씁니다. 프레임마다 머리가 놓인 자리를 적어 둔 표
- *   (`animations/turini-frame-anchors.json`)를 읽어, 모자·안경·목장식이
- *   고개를 그대로 따라갑니다. 손에 드는 상황 소품(체크 팻말·X 팻말·책)과
- *   자리가 겹치는 가방은 이 동작에서 빠집니다.
- *   동작이 끝나면 가방까지 모두 반영된 리그 캐릭터로 돌아옵니다.
+ * - 꾸미기 화면 밖에서는 언제나 액세서리 없는 기본 투리니를 그립니다.
+ * - 꾸미기 편집기에서만 `customization`을 직접 넘겨 선택한 외형을 미리 봅니다.
+ * - 평상시·생각·읽기는 호흡과 눈 깜박임만 있는 차분한 리그를 씁니다.
+ * - 정답·오답·완료처럼 반응이 필요한 순간에만 12프레임 동작을 한 번 재생합니다.
  *
- * 화면마다 따로 이미지를 불러오지 않으므로, 꾸미기에서 저장하면 홈·마이페이지·
- * 학습 화면이 한꺼번에 바뀝니다.
+ * 저장한 외형은 꾸미기 편집기에만 사용하므로 퀴즈의 팻말과 안내 화면을 가리지 않습니다.
  */
 
 /**
- * 저장된 꾸미기 상태를 앱 전체가 공유합니다.
- * 화면마다 따로 넘기지 않아도 같은 값을 보게 되므로, 어떤 화면도
- * 혼자만 기본 캐릭터로 돌아가는 일이 없습니다.
+ * 저장된 꾸미기 상태를 편집기까지 전달하는 컨텍스트입니다.
+ * 일반 화면의 캐릭터는 이 값을 자동 적용하지 않습니다.
  */
 const CustomizationContext = createContext<TuriniCustomization>(DEFAULT_CUSTOMIZATION);
 
@@ -66,7 +61,7 @@ export function useCustomization() {
 }
 
 export type TuriniAvatarProps = {
-  /** 생략하면 공통 저장소(Provider)의 값을 씁니다 */
+  /** 꾸미기 편집기에서만 직접 넘깁니다. 생략하면 액세서리 없는 기본 외형입니다. */
   customization?: TuriniCustomization;
   motion?: TuriniMotion;
   /** 값이 바뀌면 같은 동작이라도 처음부터 다시 재생합니다 */
@@ -93,8 +88,9 @@ export default function TuriniAvatar({
   scene = false,
   animated = true,
 }: TuriniAvatarProps) {
-  const shared = useCustomization();
-  const customization = given ?? shared;
+  // Provider에는 저장값을 보관하지만, 일반 화면은 이를 자동 상속하지 않습니다.
+  // 꾸미기 편집기만 `given`을 넘겨 실제 착용 상태를 보여 줍니다.
+  const customization = given ?? BASE_CUSTOMIZATION;
   const background = scene ? findItem(customization.background) : null;
 
   // 1회 재생(정답·오답·축하)이 끝나면 착용 상태가 반영된 리그 캐릭터로 돌아옵니다.
@@ -104,7 +100,11 @@ export default function TuriniAvatar({
   // 애니메이션 그림을 못 읽으면 캐릭터가 사라지는 대신 리그 캐릭터로 대신합니다.
   const [atlasMissing, setAtlasMissing] = useState(false);
   const showRig =
-    atlasMissing || motion === "idle" || (rested.key === cycleKey && rested.done && !holdLast);
+    atlasMissing
+    || motion === "idle"
+    || motion === "thinking"
+    || motion === "reading"
+    || (rested.key === cycleKey && rested.done && !holdLast);
 
   const body =
     showRig ? (
@@ -281,6 +281,7 @@ export function TuriniDressUp({
             className="turini-avatar--editor"
             label="꾸미는 중인 나의 투리니"
             scene
+            animated={false}
           />
         ) : (
           <div className="turini-avatar turini-avatar--editor turini-avatar--turn">
@@ -411,7 +412,7 @@ export function TuriniDressUp({
       ) : null}
 
       <p className="turini-dress__notice">
-        고른 아이템은 바로 저장돼서 새로고침하거나 다시 로그인해도 그대로예요. 홈·학습·마이페이지의 투리니에도 함께 반영돼요.
+        고른 아이템은 바로 저장돼서 새로고침하거나 다시 로그인해도 유지돼요. 선택한 외형은 이 꾸미기 화면에서만 보여요.
       </p>
     </section>
   );

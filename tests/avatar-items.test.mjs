@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   AVATAR_ITEMS,
   AVATAR_SLOTS,
+  BASE_CUSTOMIZATION,
   CONTENT_BOX,
   DEFAULT_CUSTOMIZATION,
   LAYER_ORDER,
@@ -267,6 +268,29 @@ test("앱 전체가 하나의 공통 캐릭터 컴포넌트를 쓴다", () => {
   assert.doesNotMatch(pageSource, /assets\/turini/);
   const uses = pageSource.match(/<TuriniAvatar/g) || [];
   assert.ok(uses.length >= 12, `공통 컴포넌트 사용처가 ${uses.length}곳뿐입니다`);
+});
+
+test("꾸미기 편집기 밖에서는 저장한 액세서리를 자동 적용하지 않는다", () => {
+  assert.deepEqual(BASE_CUSTOMIZATION, {
+    hat: null,
+    glasses: null,
+    neck: null,
+    bag: null,
+    background: null,
+  });
+  assert.match(avatarSource, /const customization = given \?\? BASE_CUSTOMIZATION/);
+  assert.match(avatarSource, /customization=\{customization\}[\s\S]*animated=\{false\}/);
+  assert.match(avatarSource, /선택한 외형은 이 꾸미기 화면에서만 보여요/);
+});
+
+test("평상시 캐릭터는 팔다리를 흔들지 않고 호흡과 고개만 천천히 움직인다", async () => {
+  const rigStyle = await readFile(new URL("../app/turini-rig.css", import.meta.url), "utf8");
+  assert.doesNotMatch(rigStyle, /turini-rig-arm-left/);
+  assert.doesNotMatch(rigStyle, /turini-rig-leg-left/);
+  assert.match(rigStyle, /turini-rig-breathe 6\.8s/);
+  assert.match(rigStyle, /turini-rig-head 8\.4s/);
+  assert.match(avatarSource, /motion === "thinking"/);
+  assert.match(avatarSource, /motion === "reading"/);
 });
 
 test("기존 프로필 정보와 계정 기능은 그대로 남아 있다", () => {

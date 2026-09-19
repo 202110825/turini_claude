@@ -106,5 +106,5 @@ test("금액 입력칸은 앞의 0 없이 쉼표로 보여 주고, 설명은 반
 test("애니메이션 그림을 못 읽으면 캐릭터가 사라지지 않고 리그로 대체된다", () => {
   assert.match(spriteSource2, /resolve\(null\)/);
   assert.match(spriteSource2, /onAtlasMissing/);
-  assert.match(avatarSource2, /atlasMissing \|\| motion === "idle"/);
+  assert.match(avatarSource2, /atlasMissing[\s\S]*\|\| motion === "idle"/);
 });

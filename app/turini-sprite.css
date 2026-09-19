@@ -34,7 +34,7 @@
   image-rendering: auto;
   opacity: 0;
   transition: opacity .18s ease-out;
-  animation: turini-sprite-appear .34s cubic-bezier(.34, 1.36, .64, 1) both;
+  animation: turini-sprite-appear .28s ease-out both;
   transform-origin: 50% 94%;
 }
 
@@ -56,8 +56,7 @@
 }
 
 @keyframes turini-sprite-appear {
-  0%   { transform: scale(.94); }
-  55%  { transform: scale(1.03); }
+  0%   { transform: scale(.985); opacity: .6; }
   100% { transform: scale(1); }
 }
 

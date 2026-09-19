@@ -82,55 +82,26 @@
 /* ── 움직임 ────────────────────────────────────────────────── */
 @keyframes turini-rig-breathe {
   0%, 100% { transform: scale(1, 1); }
-  50%      { transform: scale(.991, 1.014); }
+  50%      { transform: scale(.997, 1.006); }
 }
 @keyframes turini-rig-head {
-  0%, 100% { transform: rotate(-2.1deg) translateY(0); }
-  35%      { transform: rotate(1.4deg) translateY(-.35%); }
-  70%      { transform: rotate(2.4deg) translateY(.15%); }
-}
-@keyframes turini-rig-arm-left {
-  0%, 100% { transform: rotate(-5.5deg); }
-  50%      { transform: rotate(4.5deg); }
-}
-@keyframes turini-rig-arm-right {
-  0%, 100% { transform: rotate(6.5deg); }
-  50%      { transform: rotate(-4deg); }
-}
-@keyframes turini-rig-leg-left {
-  0%, 100% { transform: rotate(-1.1deg); }
-  50%      { transform: rotate(1deg); }
-}
-@keyframes turini-rig-leg-right {
-  0%, 100% { transform: rotate(1.2deg); }
-  50%      { transform: rotate(-.9deg); }
+  0%, 100% { transform: rotate(-.35deg) translateY(0); }
+  50%      { transform: rotate(.35deg) translateY(-.08%); }
 }
 @keyframes turini-rig-shadow {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50%      { transform: scale(.978); opacity: .9; }
+  50%      { transform: scale(.992); opacity: .96; }
 }
 
-/* 주기를 4.2s / 5.6s / 3.4s / 3.9s 로 다르게 둬서 동시에 맞아떨어지지 않습니다 */
+/* 발은 고정하고 호흡·고개·눈만 아주 천천히 움직여 화면이 산만하지 않게 합니다. */
 .turini-rig[data-live="true"] .turini-rig__body {
-  animation: turini-rig-breathe 4.2s ease-in-out infinite;
+  animation: turini-rig-breathe 6.8s cubic-bezier(.45, .05, .55, .95) infinite;
 }
 .turini-rig[data-live="true"] .turini-rig__head {
-  animation: turini-rig-head 5.6s ease-in-out infinite;
-}
-.turini-rig[data-live="true"] .turini-rig__arm--left {
-  animation: turini-rig-arm-left 3.4s ease-in-out infinite;
-}
-.turini-rig[data-live="true"] .turini-rig__arm--right {
-  animation: turini-rig-arm-right 3.9s ease-in-out infinite;
-}
-.turini-rig[data-live="true"] .turini-rig__leg--left {
-  animation: turini-rig-leg-left 4.6s ease-in-out infinite;
-}
-.turini-rig[data-live="true"] .turini-rig__leg--right {
-  animation: turini-rig-leg-right 5.1s ease-in-out infinite;
+  animation: turini-rig-head 8.4s cubic-bezier(.45, .05, .55, .95) infinite;
 }
 .turini-rig[data-live="true"] .turini-rig__shadow {
-  animation: turini-rig-shadow 4.2s ease-in-out infinite;
+  animation: turini-rig-shadow 6.8s cubic-bezier(.45, .05, .55, .95) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
