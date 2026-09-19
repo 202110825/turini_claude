@@ -174,11 +174,6 @@ export type TuriniProps = {
   className?: string;
   /** 화면에 같은 뜻의 글이 이미 있을 때 장식으로만 쓰려면 true */
   decorative?: boolean;
-  /**
-   * 한 프레임에 멈춰 세웁니다. 꾸미기 화면처럼 액세서리를 정확한 자리에
-   * 붙여야 할 때 씁니다. 프레임이 바뀌면 기준점도 같이 움직이기 때문입니다.
-   */
-  frozen?: boolean;
 };
 
 export default function Turini({
@@ -186,7 +181,6 @@ export default function Turini({
   reactKey,
   className = "",
   decorative = false,
-  frozen = false,
 }: TuriniProps) {
   const [frame, setFrame] = useState(() => STILL_FRAME[state]);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -203,7 +197,7 @@ export default function Turini({
   }, []);
 
   useEffect(() => {
-    if (reduceMotion || frozen) return;
+    if (reduceMotion) return;
     let running = true;
     let queue: Beat[] = [...(INTRO[state] ?? [])];
     const advance = () => {
@@ -219,10 +213,10 @@ export default function Turini({
       running = false;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [state, reduceMotion, frozen, reactKey]);
+  }, [state, reduceMotion, reactKey]);
 
   // 애니메이션을 줄이는 설정에서는 상태마다 뜻이 분명한 한 장면으로 고정합니다.
-  const displayFrame = reduceMotion || frozen ? STILL_FRAME[state] : frame;
+  const displayFrame = reduceMotion ? STILL_FRAME[state] : frame;
 
   // key가 바뀌면 무대가 다시 붙으면서 등장 반응 동작이 처음부터 재생됩니다.
   const stageKey = `${state}|${reactKey ?? ""}`;
@@ -231,12 +225,7 @@ export default function Turini({
     : ({ role: "img", "aria-label": LABEL[state] } as const);
 
   return (
-    <span
-      className={`turini ${className}`.trim()}
-      data-state={state}
-      data-frozen={frozen ? "true" : undefined}
-      {...labelProps}
-    >
+    <span className={`turini ${className}`.trim()} data-state={state} {...labelProps}>
       <span className="turini__stage" key={stageKey}>
         <span className="turini__shadow" />
         <span
