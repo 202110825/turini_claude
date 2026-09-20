@@ -39,6 +39,33 @@ export function assetPathWebp(slot: AvatarSlot, file: string) {
 export const BASE_NO_BACKPACK = `${ASSET_ROOT}/character/base/turini-base-no-backpack.png`;
 
 /**
+ * 꾸미기 미리보기용 448×448 고정 캔버스입니다.
+ * 모든 레이어가 같은 크기라 CSS 좌표 계산 없이 정확히 포개집니다.
+ */
+export const DRESSUP_BASE = `${ASSET_ROOT}/layers/base/front.png`;
+export const DRESSUP_BASE_WEBP = `${ASSET_ROOT}/optimized/layers/base/front.webp`;
+
+const LAYER_FOLDER: Partial<Record<AvatarSlot, string>> = {
+  hat: "hats",
+  glasses: "glasses",
+  neck: "neck",
+  bag: "bags",
+};
+
+export type LayerView = "front" | "back";
+
+export function dressupLayerPath(
+  item: { slot: AvatarSlot; file: string },
+  view: LayerView = "front",
+  webp = false,
+) {
+  const folder = LAYER_FOLDER[item.slot];
+  if (!folder) return null;
+  const actualView = item.slot === "bag" ? view : "front";
+  return `${ASSET_ROOT}/${webp ? "optimized/" : ""}layers/${actualView}/${folder}/${item.file}.${webp ? "webp" : "png"}`;
+}
+
+/**
  * 착용 완성본 — 캐릭터가 그 아이템 하나를 실제로 착용한 상태로 다시 렌더링한 그림입니다.
  * **목록 썸네일과 "이 아이템 하나만" 미리보기에만** 씁니다.
  * 여러 장을 겹쳐 조합하면 조명·각도가 어긋나므로 절대 겹치지 않습니다.

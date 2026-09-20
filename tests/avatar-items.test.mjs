@@ -9,11 +9,14 @@ import {
   BASE_CUSTOMIZATION,
   CONTENT_BOX,
   DEFAULT_CUSTOMIZATION,
+  DRESSUP_BASE,
+  DRESSUP_BASE_WEBP,
   LAYER_ORDER,
   SLOT_ANCHOR,
   assetPath,
   avatarStatsFrom,
   bagStrapColor,
+  dressupLayerPath,
   findItem,
   isItemUnlocked,
   itemsForSlot,
@@ -30,6 +33,7 @@ const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "
 const avatarSource = await readFile(new URL("../app/turini-avatar.tsx", import.meta.url), "utf8");
 const rigSource = await readFile(new URL("../app/turini-rig.tsx", import.meta.url), "utf8");
 const rigStyle = await readFile(new URL("../app/turini-rig.css", import.meta.url), "utf8");
+const compositeSource = await readFile(new URL("../app/turini-composite.tsx", import.meta.url), "utf8");
 const spriteSource = await readFile(new URL("../app/turini-sprite.tsx", import.meta.url), "utf8");
 const spriteStyle = await readFile(new URL("../app/turini-sprite.css", import.meta.url), "utf8");
 
@@ -147,7 +151,7 @@ test("모든 아이템의 그림 파일이 실제로 있다", () => {
   }
 });
 
-test("착용 완성본은 목록·단일 미리보기에만 쓰고 겹쳐 조합하지 않는다", () => {
+test("착용 완성본은 목록·가방 3/4 미리보기에만 쓰고 겹쳐 조합하지 않는다", () => {
   for (const item of AVATAR_ITEMS) {
     const worn = wornPreview(item);
     if (item.slot === "background") {
@@ -158,8 +162,28 @@ test("착용 완성본은 목록·단일 미리보기에만 쓰고 겹쳐 조합
   }
   // 완성본을 여러 장 겹치는 코드가 없어야 합니다.
   assert.doesNotMatch(rigSource, /wornPreview/);
-  // 여러 아이템을 함께 입은 모습은 리그로만 만듭니다.
-  assert.match(avatarSource, /TuriniRig/);
+  assert.doesNotMatch(compositeSource, /wornPreview/);
+  // 편집기 조합은 같은 크기의 고정 캔버스 레이어를 씁니다.
+  assert.match(avatarSource, /TuriniComposite/);
+  assert.match(compositeSource, /dressupLayerPath/);
+});
+
+test("모든 꾸미기 아이템에 고정 캔버스 레이어가 있다", () => {
+  assert.ok(existsSync(publicPath(DRESSUP_BASE)), "꾸미기 정면 베이스 PNG 없음");
+  assert.ok(existsSync(publicPath(DRESSUP_BASE_WEBP)), "꾸미기 정면 베이스 WebP 없음");
+  for (const item of AVATAR_ITEMS) {
+    if (item.slot === "background") continue;
+    const png = dressupLayerPath(item);
+    const webp = dressupLayerPath(item, "front", true);
+    assert.ok(png && existsSync(publicPath(png)), `${item.id} 정면 레이어 PNG 없음`);
+    assert.ok(webp && existsSync(publicPath(webp)), `${item.id} 정면 레이어 WebP 없음`);
+    if (item.slot === "bag") {
+      const backPng = dressupLayerPath(item, "back");
+      const backWebp = dressupLayerPath(item, "back", true);
+      assert.ok(backPng && existsSync(publicPath(backPng)), `${item.id} 후면 레이어 PNG 없음`);
+      assert.ok(backWebp && existsSync(publicPath(backWebp)), `${item.id} 후면 레이어 WebP 없음`);
+    }
+  }
 });
 
 /* ── 배치 (리그 앵커) ──────────────────────────────────── */

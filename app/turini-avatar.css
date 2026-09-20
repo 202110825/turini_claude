@@ -23,6 +23,69 @@
   height: 100%;
 }
 
+/* ── 꾸미기 정면 합성 ────────────────────────────────────────
+   모든 그림은 이미 448×448 같은 좌표계에 맞춘 상태입니다.
+   CSS에서 아이템마다 다시 확대·이동하지 않아 카드의 착용샷과 크기가 달라지지 않습니다. */
+.turini-composite {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: visible;
+  pointer-events: none;
+}
+.turini-composite__canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: 50% 91%;
+}
+.turini-composite__base,
+.turini-composite__layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.turini-composite__base { z-index: 2; }
+.turini-composite__bag { z-index: 1; }
+.turini-composite__layer[data-slot="neck"] { z-index: 4; }
+.turini-composite__layer[data-slot="glasses"] { z-index: 5; }
+.turini-composite__layer[data-slot="hat"] { z-index: 6; }
+.turini-composite picture,
+.turini-composite img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.turini-composite__straps {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+.turini-composite__straps i {
+  position: absolute;
+  top: 50.5%;
+  width: 3.5%;
+  height: 21%;
+  border-radius: 999px;
+  background:
+    linear-gradient(100deg, rgba(0,0,0,.20), rgba(255,255,255,.28) 45%, rgba(0,0,0,.22)),
+    var(--strap);
+  box-shadow: 0 1px 2px rgba(20,40,28,.22);
+}
+.turini-composite__straps i:first-child { left: 39.2%; transform: rotate(8deg); }
+.turini-composite__straps i:last-child { right: 39.2%; transform: rotate(-8deg); }
+
+/* 떠다니지 않고 발을 고정한 채 7초에 한 번 아주 작게 호흡합니다. */
+@keyframes turini-composite-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(.998, 1.006); }
+}
+.turini-composite[data-live="true"] .turini-composite__canvas {
+  animation: turini-composite-breathe 7s cubic-bezier(.45,.05,.55,.95) infinite;
+}
+
 /* 배경이 있는 무대 — 홈·마이페이지·꾸미기 */
 .turini-avatar--scene {
   border-radius: 24px;
@@ -91,6 +154,7 @@
   position: absolute;
   inset: 0;
   display: block;
+  z-index: 1;
 }
 .turini-dress__turn img {
   display: block;
@@ -98,18 +162,16 @@
   height: 100%;
   object-fit: contain;
 }
-/* 완전 후면에서는 등 한가운데에 가방을 올립니다.
-   (뒷모습 그림 768px 기준 몸 중심 x≈384, 등 범위 y≈366~640 을 재서 맞춘 값) */
-.turini-dress__turn-bag {
+/* 방향을 바꿔도 같은 448 캔버스 레이어를 사용하므로 선택이 밀리거나 사라지지 않습니다. */
+.turini-dress__turn-layer {
   position: absolute;
+  inset: 0;
   z-index: 3;
-  left: 22%;
-  top: 32%;
-  width: 56%;
-  aspect-ratio: 1 / 1;
+  display: block;
 }
-.turini-dress__turn-bag picture { display: block; width: 100%; height: 100%; }
-.turini-dress__turn-bag img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.turini-dress__turn-layer--hat { z-index: 4; }
+.turini-dress__turn-layer picture,
+.turini-dress__turn-layer img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
 .turini-dress__stage { margin: 16px 0 4px; }
 
@@ -291,6 +353,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .turini-dress__item, .turini-dress__view { transition: none; }
+  .turini-composite__canvas { animation: none !important; }
 }
 
 /* ==========================================================================

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import TuriniComposite from "./turini-composite";
 import TuriniRig from "./turini-rig";
 import TuriniSprite, { type TuriniMotion } from "./turini-sprite";
 import {
@@ -13,6 +14,7 @@ import {
   VIEW_LABEL,
   assetPath,
   assetPathWebp,
+  dressupLayerPath,
   findItem,
   isItemUnlocked,
   itemsForSlot,
@@ -107,7 +109,15 @@ export default function TuriniAvatar({
     || (rested.key === cycleKey && rested.done && !holdLast);
 
   const body =
-    showRig ? (
+    given && showRig ? (
+      <TuriniComposite
+        customization={customization}
+        animated={animated}
+        className="turini-avatar__figure"
+        label={label}
+        decorative={decorative || scene}
+      />
+    ) : showRig ? (
       <TuriniRig
         customization={customization}
         animated={animated}
@@ -192,16 +202,40 @@ function WornThumb({ item }: { item: AvatarItem }) {
    회전 미리보기 — 가방은 등 뒤라서 정면으로는 잘 보이지 않습니다.
    ────────────────────────────────────────────────────────────── */
 
-function TurnaroundView({ view, bag }: { view: TurniView; bag: AvatarItem | null }) {
+function TurnaroundLayer({ item, view = "front" }: { item: AvatarItem; view?: "front" | "back" }) {
   const [failed, setFailed] = useState(false);
+  const png = dressupLayerPath(item, view);
+  const webp = dressupLayerPath(item, view, true);
+  if (!png || failed) return null;
+  return (
+    <picture className={`turini-dress__turn-layer turini-dress__turn-layer--${item.slot}`}>
+      {webp ? <source srcSet={webp} type="image/webp" /> : null}
+      <img src={png} alt="" decoding="async" draggable={false} onError={() => setFailed(true)} />
+    </picture>
+  );
+}
+
+function TurnaroundView({
+  view,
+  customization,
+}: {
+  view: Exclude<TurniView, "front">;
+  customization: TuriniCustomization;
+}) {
+  const [failed, setFailed] = useState(false);
+  const bag = findItem(customization.bag);
+  const hat = findItem(customization.hat);
   // 3/4 후면은 "그 가방 하나를 멘" 완성본이 있으면 그걸 씁니다.
   const worn = view === "three-quarter-rear" && bag ? wornPreview(bag) : null;
   if (worn && !failed) {
     return (
-      <picture className="turini-dress__turn">
-        <source srcSet={worn.webp} type="image/webp" />
-        <img src={worn.png} alt="" decoding="async" draggable={false} onError={() => setFailed(true)} />
-      </picture>
+      <span className="turini-dress__turn">
+        <picture>
+          <source srcSet={worn.webp} type="image/webp" />
+          <img src={worn.png} alt="" decoding="async" draggable={false} onError={() => setFailed(true)} />
+        </picture>
+        {hat ? <TurnaroundLayer item={hat} /> : null}
+      </span>
     );
   }
   return (
@@ -210,11 +244,8 @@ function TurnaroundView({ view, bag }: { view: TurniView; bag: AvatarItem | null
         <source srcSet={TURNAROUND_WEBP[view]} type="image/webp" />
         <img src={TURNAROUND[view]} alt="" decoding="async" draggable={false} />
       </picture>
-      {bag && view === "back" ? (
-        <span className="turini-dress__turn-bag">
-          <ItemImage item={bag} eager />
-        </span>
-      ) : null}
+      {bag && view === "back" ? <TurnaroundLayer item={bag} view="back" /> : null}
+      {hat ? <TurnaroundLayer item={hat} /> : null}
     </span>
   );
 }
@@ -250,6 +281,7 @@ export function TuriniDressUp({
   const visible = showLocked ? slotItems : slotItems.filter((entry) => unlockedIds.has(entry.id));
   const slotName = AVATAR_SLOTS.find((entry) => entry.key === slot)?.name ?? "";
   const bag = findItem(customization.bag);
+  const background = findItem(customization.background);
 
   const choose = (entry: AvatarItem) => {
     if (!unlockedIds.has(entry.id)) return;
@@ -284,8 +316,13 @@ export function TuriniDressUp({
             animated
           />
         ) : (
-          <div className="turini-avatar turini-avatar--editor turini-avatar--turn">
-            <TurnaroundView view={view} bag={bag} />
+          <div className="turini-avatar turini-avatar--editor turini-avatar--scene turini-avatar--turn">
+            {background ? (
+              <span className="turini-avatar__background" aria-hidden="true">
+                <ItemImage item={background} eager />
+              </span>
+            ) : null}
+            <TurnaroundView view={view} customization={customization} />
           </div>
         )}
 
@@ -306,9 +343,9 @@ export function TuriniDressUp({
         {view !== "front" ? (
           <p className="turini-dress__view-note">
             {view === "three-quarter-rear" && bag
-              ? "선택한 가방을 실제로 멘 착용샷이에요."
+              ? "선택한 가방을 실제로 멘 착용샷이에요. 모자는 각도에 맞춰 함께 유지돼요."
               : bag
-                ? "선택한 가방이 등 위에 보이도록 표시했어요. 전체 조합은 정면에서 확인할 수 있어요."
+                ? "선택한 가방과 모자, 배경이 방향을 바꿔도 그대로 유지돼요. 안경과 목장식은 뒤에서는 가려져요."
                 : "등이 보이는 각도예요. 가방을 선택하면 이 화면에도 바로 표시돼요."}
           </p>
         ) : null}
