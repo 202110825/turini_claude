@@ -102,12 +102,14 @@
    (뒷모습 그림 768px 기준 몸 중심 x≈384, 등 범위 y≈366~640 을 재서 맞춘 값) */
 .turini-dress__turn-bag {
   position: absolute;
-  left: 27.5%;
-  top: 44%;
-  width: 45%;
+  z-index: 3;
+  left: 22%;
+  top: 32%;
+  width: 56%;
   aspect-ratio: 1 / 1;
 }
-.turini-dress__turn-bag img { width: 100%; height: 100%; object-fit: contain; }
+.turini-dress__turn-bag picture { display: block; width: 100%; height: 100%; }
+.turini-dress__turn-bag img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
 .turini-dress__stage { margin: 16px 0 4px; }
 

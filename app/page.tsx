@@ -40,6 +40,7 @@ import {
   allocationTotal,
   analyzeAllocation,
   normalizeAllocation,
+  normalizeHorizon,
   targetFor,
   validateAllocation,
   type Allocation,
@@ -81,6 +82,7 @@ type QuizQuestion = {
   isProfile?: boolean;
   choiceScores?: number[];
   reviewKind?: "scheduled" | "retry";
+  diagnosticPoint?: number;
 };
 
 type DiagnosticQuestionRow = {
@@ -197,30 +199,24 @@ const DEFAULT_PROGRESS: Progress = {
   customization: DEFAULT_CUSTOMIZATION,
 };
 
-const DIAG_POINTS: Record<string, number> = {
-  S1: 2, S2: 3, S3: 4, B1: 1, B2: 3, B3: 5,
-  F1: 2, F2: 3, F3: 4, R1: 1, R2: 3, R3: 5,
-  D1: 1, D2: 3, D3: 5, C1: 2, C2: 4, C3: 3,
-};
-
 const PROFILE_QUESTIONS: QuizQuestion[] = [
   {
     id: "PROFILE_P1", base_id: "PROFILE_P1", category: "투자 성향", difficulty: "초급", type: "성향 진단",
     question: "투자할 때 ‘원금 손실’에 대한 내 생각과 가장 가까운 것은?",
     choices: ["원금은 꼭 지키고 싶다", "어느 정도 손실은 감수할 수 있다", "높은 수익을 위해 큰 손실 위험도 감수할 수 있다"],
-    answer: "", explanation: "정답이 없는 성향 문항이에요.", weakness_tag: "", source_name: "OECD QS1_2 기반", source_url: "https://www.oecd.org/financial/education/", isProfile: true, choiceScores: [1, 2, 3],
+    answer: "", explanation: "정답이 없는 성향 문항이에요.", weakness_tag: "", source_name: "금융투자협회 표준투자권유준칙 반영", source_url: "https://law.kofia.or.kr/service/law/lawFullScreenContent.do?seq=149", isProfile: true, choiceScores: [1, 2, 3],
   },
   {
     id: "PROFILE_P2", base_id: "PROFILE_P2", category: "투자 성향", difficulty: "초급", type: "성향 진단",
-    question: "내가 투자한 자산이 한 달 만에 20% 하락했다면 나는?",
-    choices: ["곧바로 팔거나 안전한 자산으로 옮긴다", "하락 이유를 확인하고 계획을 다시 점검한다", "저가 매수 기회로 보고 추가 투자도 고려한다"],
-    answer: "", explanation: "정답이 없는 성향 문항이에요.", weakness_tag: "", source_name: "OECD QF14 기반", source_url: "https://www.oecd.org/financial/education/", isProfile: true, choiceScores: [1, 2, 3],
+    question: "현재 투자하려는 자금을 어느 정도 기간 동안 투자할 수 있는가?",
+    choices: ["1년 미만", "1년 이상~3년 미만", "3년 이상"],
+    answer: "", explanation: "정답이 없는 성향 문항이에요.", weakness_tag: "", source_name: "금융투자협회 투자자정보 확인서 반영", source_url: "https://law.kofia.or.kr/service/law/lawFullScreenContent.do?seq=149", isProfile: true, choiceScores: [1, 2, 3],
   },
   {
     id: "PROFILE_P3", base_id: "PROFILE_P3", category: "투자 성향", difficulty: "초급", type: "성향 진단",
-    question: "내가 바라는 투자 스타일에 가장 가까운 것은?",
-    choices: ["안정적으로 천천히 불리고 싶다", "적당한 위험으로 시장 평균 수준을 추구한다", "변동성이 커도 장기적으로 높은 수익을 노린다"],
-    answer: "", explanation: "정답이 없는 성향 문항이에요.", weakness_tag: "", source_name: "OECD QS1_6·QS1_8 기반", source_url: "https://www.oecd.org/financial/education/", isProfile: true, choiceScores: [1, 2, 3],
+    question: "지금까지 투자한 경험이 있는 금융상품 중 가장 위험도가 높은 것은?",
+    choices: ["투자경험이 거의 없거나 예·적금, 국채, MMF, CMA 위주", "채권, 채권형·혼합형 펀드, 원금보장 또는 일부보장형 ELS", "주식, 주식형펀드, 원금비보장 ELS, ELW, 선물·옵션, 파생상품"],
+    answer: "", explanation: "정답이 없는 성향 문항이에요.", weakness_tag: "", source_name: "금융투자협회 투자자정보 확인서 반영", source_url: "https://law.kofia.or.kr/service/law/lawFullScreenContent.do?seq=149", isProfile: true, choiceScores: [1, 2, 3],
   },
 ];
 
@@ -252,6 +248,7 @@ function buildDiagnosticQuestions(rows: DiagnosticQuestionRow[], learningQuestio
         verification_status: "verified",
         isProfile,
         choiceScores: isProfile ? [row.style_score_1 || 1, row.style_score_2 || 2, row.style_score_3 || 3] : undefined,
+        diagnosticPoint: isProfile ? undefined : row.point ?? 0,
       };
     });
 }
@@ -284,7 +281,7 @@ export default function Home() {
   const [allocation, setAllocation] = useState<Allocation>(EMPTY_ALLOCATION);
   const [amount, setAmount] = useState(10000000);
   const [goal, setGoal] = useState("장기 자산 증식");
-  const [horizon, setHorizon] = useState("5년 이상");
+  const [horizon, setHorizon] = useState("10년 이상");
   const [portfolioResult, setPortfolioResult] = useState<PortfolioResult | null>(null);
   const [aiFeedback, setAiFeedback] = useState<AIFeedback | null>(null);
   const [aiFeedbackLoading, setAiFeedbackLoading] = useState(false);
@@ -331,7 +328,7 @@ export default function Home() {
     setAllocation(normalizeAllocation(savedPortfolio.allocation));
     setAmount(typeof savedPortfolio.amount === "number" ? savedPortfolio.amount : 10000000);
     setGoal(savedPortfolio.goal || "장기 자산 증식");
-    setHorizon(savedPortfolio.horizon || "5년 이상");
+    setHorizon(normalizeHorizon(savedPortfolio.horizon));
     setPlanner(normalizeWealthPlanner(savedPortfolio.planner));
     setPortfolioResult(savedPortfolio.ruleVersion === PORTFOLIO_RULE_VERSION ? savedPortfolio.result || null : null);
     setAiFeedback(null);
@@ -345,7 +342,7 @@ export default function Home() {
     setAllocation({ ...EMPTY_ALLOCATION });
     setAmount(10000000);
     setGoal("장기 자산 증식");
-    setHorizon("5년 이상");
+    setHorizon("10년 이상");
     setPlanner({ ...DEFAULT_WEALTH_PLANNER });
     setPortfolioResult(null);
     setAiFeedback(null);
@@ -603,7 +600,7 @@ export default function Home() {
     const correct = question.isProfile
       ? true
       : isAnswerCorrect(value, question.answer, question.accepted_answers);
-    const point = correct && question.diagnostic_item ? DIAG_POINTS[question.diagnostic_item] || 0 : 0;
+    const point = correct && question.diagnostic_item ? question.diagnosticPoint || 0 : 0;
     const profilePoint = question.isProfile ? question.choiceScores?.[profileChoice] || 0 : 0;
     const retryPlan = !correct && session.mode !== "diagnosis"
       ? scheduleRetry(session, question, questions, progress.pendingRetries)
@@ -958,7 +955,7 @@ export default function Home() {
             <div className="screen home-screen">
               <section className="welcome-row">
                 <div><p className="eyebrow">좋은 하루예요</p><h1>안녕하세요, {account.username}님 👋</h1><p>오늘도 투리니와 금융 지식을 키워볼까요?</p></div>
-                <button className="round-notice" aria-label="알림">♧<span /></button>
+                <button className="round-notice" onClick={() => navigate("profile")} aria-label="마이페이지에서 취약 개념과 학습 알림 보기" title="취약 개념과 학습 기록 보기">♧<span /></button>
               </section>
               <section className="hero-card">
                 <div className="hero-copy"><span className="pill">취약 개념 맞춤 추천</span><h2>내 약점부터 채우는<br /><em>맞춤 학습 10문제</em></h2><p>{progress.weakTags.length ? `${progress.weakTags.slice(0, 2).join(" · ")}부터 우선 복습해요.` : "진단 결과와 학습 기록에 맞는 문제를 추천해요."}</p><button className="primary-button" onClick={startDaily} disabled={!questions.length}>약점 학습 시작 <span>→</span></button></div>
@@ -1046,7 +1043,7 @@ export default function Home() {
                   </div>
                 </div>
               </section>
-              <section className="portfolio-options card-block"><div><label>투자 목적 <small>(기록용)</small><select value={goal} onChange={(event) => setGoal(event.target.value)}><option>장기 자산 증식</option><option>주택·목돈 마련</option><option>은퇴 준비</option><option>단기 여유자금 운용</option></select><em>현재 점수·조정 계산에는 반영되지 않아요.</em></label><label>투자 기간<select value={horizon} onChange={(event) => { setHorizon(event.target.value); setPortfolioResult(null); }}><option>1년 미만</option><option>1~3년</option><option>3~5년</option><option>5년 이상</option></select></label></div></section>
+              <section className="portfolio-options card-block"><div><label>투자 목적 <small>(기록용)</small><select value={goal} onChange={(event) => setGoal(event.target.value)}><option>장기 자산 증식</option><option>주택·목돈 마련</option><option>은퇴 준비</option><option>단기 여유자금 운용</option></select><em>현재 위험·조정 계산에는 반영되지 않아요.</em></label><label>투자 기간<select value={horizon} onChange={(event) => { setHorizon(event.target.value); setPortfolioResult(null); }}><option>1년 미만</option><option>1~3년</option><option>3~10년</option><option>10년 이상</option></select></label></div></section>
               {/* 합계 요약 — 화면 아래에 붙어 따라다녀서 어디서 입력하든 바로 보입니다 */}
               <div className="alloc-summary" data-ready={allocationReady ? "true" : undefined} role="status" aria-live="polite">
                 <div className="alloc-summary__numbers">
@@ -1392,20 +1389,53 @@ function NavButton({ item, active, onClick }: { item: View; active: boolean; onC
 
 function PortfolioResults({ result, allocation, tab, setTab, aiFeedback, aiFeedbackLoading, aiFeedbackError, retryAiFeedback }: { result: PortfolioResult; allocation: Allocation; tab: "summary" | "rebalance" | "detail" | "coach"; setTab: (tab: "summary" | "rebalance" | "detail" | "coach") => void; aiFeedback: AIFeedback | null; aiFeedbackLoading: boolean; aiFeedbackError: string; retryAiFeedback: () => void }) {
   const targetChart = ASSETS.reduce<{ cursor: number; stops: string[] }>((state, asset) => {
-    const end = state.cursor + toPercent(result.target[asset.key]);
+    const end = state.cursor + toPercent(result.nearTarget.allocation[asset.key]);
     return { cursor: end, stops: [...state.stops, `${asset.color} ${state.cursor}% ${end}%`] };
   }, { cursor: 0, stops: [] });
   const targetChartStyle = { background: `conic-gradient(${targetChart.stops.join(", ")})` } as CSSProperties;
-  const starCount = Math.max(1, Math.min(5, Math.round(result.score / result.scoreMax * 5)));
-  const gaugePosition = Math.max(0, Math.min(100, (result.riskScore - 5) / 60 * 100));
+  const typePercent = Math.round(result.fitType * 100);
+  const horizonPercent = Math.round(result.fitHorizon * 100);
+  const addedAsset = result.nearTargetAddedAsset ? ASSETS.find((asset) => asset.key === result.nearTargetAddedAsset) : null;
+
   return <section id="portfolio-result" className="portfolio-result card-block">
-    <div className="result-hero"><div><p>내부 종합점수 · {result.scoreMax}점 만점</p><strong>{result.score}<small>점</small></strong><span>{result.scoreLabel}</span><div className="stars">{"★".repeat(starCount)}{"☆".repeat(5 - starCount)}</div></div><TuriniAvatar motion="celebrate" className="turini-score" replayKey={result.score} /></div>
-    <div className="score-cards"><article><span>위험 점수</span><strong>{result.riskScore}점</strong><small>{result.portfolioType} 포트폴리오</small><div className="mini-gauge"><i style={{ left: `${gaugePosition}%` }} /></div></article><article><span>성향 일치도</span><strong>{result.fit}%</strong><small>{result.profileMatch.level} · {result.suitability}</small><div className="ring-score" style={{ "--score": `${result.fit * 3.6}deg` } as CSSProperties} /></article></div>
-    <div className="portfolio-tabs"><button className={tab === "summary" ? "active" : ""} onClick={() => setTab("summary")}>요약</button><button className={tab === "rebalance" ? "active" : ""} onClick={() => setTab("rebalance")}>리밸런싱</button><button className={tab === "detail" ? "active" : ""} onClick={() => setTab("detail")}>상세 분석</button><button className={tab === "coach" ? "active" : ""} onClick={() => setTab("coach")}>AI 코치</button></div>
-    {tab === "summary" && <div className="tab-panel"><div className="coach-banner"><TuriniAvatar motion="reading" className="turini-coach" decorative /><div><b>투리니 코치의 한마디!</b><p>{result.coach}</p></div></div><div className="analysis-columns"><article className="good"><h3>강점</h3>{result.strengths.length ? <ul>{result.strengths.map((item) => <li key={item}>{item}</li>)}</ul> : <p>현재 강점 기준을 충족한 항목이 없어요.</p>}</article><article className="care"><h3>개선하면 좋은 점</h3>{result.cautions.length ? <ul>{result.cautions.map((item) => <li key={item}>{item}</li>)}</ul> : <p>현재 규칙에서 별도로 주의할 점이 없어요.</p>}</article></div></div>}
-    {tab === "rebalance" && <div className="tab-panel"><div className="target-chart"><div className="allocation-donut small" style={targetChartStyle}><span>예시</span></div><div><h3>학습용 조정 방향</h3><p>현재 비중과 성향별 목표의 50% 지점을 비교한 비율이에요.</p></div></div>{result.rebalancingActions.length ? <div className="rebalance-table"><div className="table-head"><span>자산</span><span>현재</span><span>목표</span><span>차이 · 방향</span></div>{result.rebalancingActions.map((item) => { const asset = ASSETS.find((candidate) => candidate.key === item.asset)!; return <div key={asset.key}><strong><i style={{ background: asset.color }} />{asset.label}</strong><span>{toPercent(allocation[asset.key])}%</span><span>{toPercent(result.target[asset.key])}%</span><b className={item.delta > 0 ? "buy" : "sell"}>{item.delta > 0 ? "+" : ""}{item.delta}%p · {item.delta > 0 ? "늘리기" : "줄이기"}</b></div>; })}</div> : <p className="fine-print">5%p 이상 차이가 나는 자산군이 없어요. 지금 비중을 유지해도 괜찮아요.</p>}{result.residualItems.length ? <div className="residual-list"><b>표에 표시되지 않은 작은 차이 · 유지</b>{result.residualItems.map((item) => { const asset = ASSETS.find((candidate) => candidate.key === item.asset)!; return <span key={item.asset}>{asset.label} {item.delta > 0 ? "+" : ""}{item.delta}%p</span>; })}</div> : null}<p className="fine-print">비율 차이와 방향만 보여 드려요. 얼마를 사고팔지는 알려드리지 않아요.</p></div>}
-    {tab === "detail" && <div className="tab-panel detail-grid"><article><span>분산도</span><strong>{result.diversification}</strong><p>자산군 사이의 분산만 평가하며 종목·업종 내부 집중은 평가하지 않음</p></article><article><span>집중 페널티</span><strong>{result.concentrationPenalty ? `-${result.concentrationPenalty}` : "0"}</strong><p>주식·주식형 ETF·펀드·금이 50%를 넘은 만큼 직접 차감</p></article><article><span>성향 일치도</span><strong>{result.fit}</strong><p>위험점수와 진단 성향 중심의 거리</p></article><article><span>기간 적합도</span><strong>{result.horizonFit}</strong><p>위험점수와 투자기간 중심의 거리</p></article></div>}
-    {tab === "coach" && <div className="tab-panel ai-coach-panel"><TuriniAvatar motion="reading" className="turini-ai-coach" decorative /><div><p className="eyebrow">TURINI GPT COACH</p>{aiFeedbackLoading ? <><h3>GPT가 분석 결과를 읽고 있어요…</h3><p>잠시만 기다려 주세요.</p></> : aiFeedback ? <><h3>{aiFeedback.summary_ko}</h3>{aiFeedback.strengths.length > 0 && <section className="ai-feedback-section"><b>강점</b><ul>{aiFeedback.strengths.map((item) => <li key={item}>{item}</li>)}</ul></section>}{aiFeedback.cautions.length > 0 && <section className="ai-feedback-section"><b>주의할 점</b><ul>{aiFeedback.cautions.map((item) => <li key={item}>{item}</li>)}</ul></section>}{aiFeedback.improvements.length > 0 && <section className="ai-feedback-section"><b>개선 방향</b><ul>{aiFeedback.improvements.map((item) => <li key={item}>{item}</li>)}</ul></section>}{aiFeedback.concept_refs.length > 0 && <p className="ai-concepts">함께 공부할 개념 · {aiFeedback.concept_refs.join(" · ")}</p>}</> : <><h3>{result.coach}</h3><p>{aiFeedbackError || "규칙 분석 결과를 표시하고 있어요."}</p>{aiFeedbackError && <button className="primary-button" onClick={retryAiFeedback}>GPT 코칭 다시 받기</button>}</>}<button className="primary-button" onClick={() => setTab("rebalance")}>조정 방향 보기</button></div></div>}
-    <p className="result-disclaimer">본 결과는 금융 학습을 위한 자산배분 예시이며 특정 금융상품의 추천이나 매수·매도 권유가 아니에요. 세금·수수료·계좌 유형·상품별 위험·종목 내부 집중위험은 반영하지 않았어요.</p>
+    <div className="result-hero portfolio-risk-hero">
+      <div><p>위험등급 · 연환산 변동성 기준 · {result.sigmaAsOf}</p><strong>{result.riskGrade}<small>등급</small></strong><span>{result.riskGradeName} · 변동성 {result.riskScore}%</span></div>
+      <TuriniAvatar motion="celebrate" className="turini-score" replayKey={`${result.riskGrade}-${result.riskScore}`} />
+    </div>
+    <div className="score-cards portfolio-fit-cards">
+      <article><span>성향 적합</span><strong>{typePercent}%</strong><small>{result.fitTypeLabel}</small><div className="ring-score" style={{ "--score": `${typePercent * 3.6}deg` } as CSSProperties} /></article>
+      <article><span>기간 적합</span><strong>{horizonPercent}%</strong><small>{result.fitHorizonLabel}</small><div className="ring-score" style={{ "--score": `${horizonPercent * 3.6}deg` } as CSSProperties} /></article>
+    </div>
+    <div className="portfolio-tabs"><button className={tab === "summary" ? "active" : ""} onClick={() => setTab("summary")}>요약</button><button className={tab === "rebalance" ? "active" : ""} onClick={() => setTab("rebalance")}>조정 방향</button><button className={tab === "detail" ? "active" : ""} onClick={() => setTab("detail")}>상세 분석</button><button className={tab === "coach" ? "active" : ""} onClick={() => setTab("coach")}>AI 코치</button></div>
+
+    {tab === "summary" && <div className="tab-panel">
+      <div className="coach-banner"><TuriniAvatar motion="reading" className="turini-coach" decorative /><div><b>투리니 코치의 한마디</b><p>{result.coach}</p></div></div>
+      <div className="risk-journey" aria-label="위험 변화 비교">
+        <article><span>현재</span><b>{result.riskGrade}등급</b><small>{result.riskScore}% · 하방 {result.downside6m}%</small></article><i>→</i>
+        <article><span>가까운 목표</span><b>{result.nearTarget.riskGrade}등급</b><small>{result.nearTarget.riskScore}% · 하방 {result.nearTarget.downside6m}%</small></article><i>→</i>
+        <article><span>기준 목표</span><b>{result.baseTarget.riskGrade}등급</b><small>{result.baseTarget.riskScore}% · 하방 {result.baseTarget.downside6m}%</small></article>
+      </div>
+      <div className="analysis-columns"><article className="good"><h3>확인된 강점</h3>{result.strengths.length ? <ul>{result.strengths.map((item) => <li key={item}>{item}</li>)}</ul> : <p>현재 두 적합 범위 안에 들어온 축은 없어요. 억지로 강점을 만들지 않고 조정 방향을 안내해 드려요.</p>}</article><article className="care"><h3>확인할 점</h3>{result.cautions.length ? <ul>{result.cautions.map((item) => <li key={item}>{item}</li>)}</ul> : <p>현재 규칙에서 별도로 주의할 점이 없어요.</p>}</article></div>
+    </div>}
+
+    {tab === "rebalance" && <div className="tab-panel">
+      <div className="target-chart"><div className="allocation-donut small" style={targetChartStyle}><span>가까운<br />목표</span></div><div><h3>지금 배분에서 가장 가까운 방향</h3><p>가능하면 이미 가진 자산군 안에서, 꼭 필요할 때만 자산군 하나를 더해 계산했어요.</p>{addedAsset ? <small>새로 포함된 자산군 · {addedAsset.label}</small> : null}</div></div>
+      {result.rebalancingActions.length ? <div className="rebalance-table"><div className="table-head"><span>자산</span><span>현재</span><span>목표</span><span>차이 · 방향</span></div>{result.rebalancingActions.map((item) => { const asset = ASSETS.find((candidate) => candidate.key === item.asset)!; return <div key={asset.key}><strong><i style={{ background: asset.color }} />{asset.label}</strong><span>{toPercent(allocation[asset.key])}%</span><span>{toPercent(result.nearTarget.allocation[asset.key])}%</span><b className={item.delta > 0 ? "buy" : "sell"}>{item.delta > 0 ? "+" : ""}{item.delta}%p · {item.delta > 0 ? "늘리기" : "줄이기"}</b></div>; })}</div> : <p className="fine-print">현재 비중이 목표 범위 안에 있어 바꿀 필요가 없어요.</p>}
+      {result.residualItems.length ? <div className="residual-list"><b>5%p보다 작은 차이</b>{result.residualItems.map((item) => { const asset = ASSETS.find((candidate) => candidate.key === item.asset)!; return <span key={item.asset}>{asset.label} {item.delta > 0 ? "+" : ""}{item.delta}%p</span>; })}</div> : null}
+      <p className="fine-print">금액이 아닌 자산군 비율과 방향만 보여 드려요. 가까운 목표는 성향 범위와 기간 범위의 교집합을 우선 사용합니다.</p>
+    </div>}
+
+    {tab === "detail" && <div className="tab-panel detail-grid portfolio-detail-v11">
+      <article><span>연환산 변동성</span><strong>{result.riskScore}%</strong><p>자산 비중과 자산 간 상관을 함께 반영한 시장위험 추정치</p></article>
+      <article><span>6개월 95% 하방</span><strong>{result.downside6m}%</strong><p>정규분포 근사치이며 실제 꼬리위험을 작게 볼 수 있어요</p></article>
+      <article><span>성향 권장 범위</span><strong>{result.typeRange[0].toFixed(2)}~{result.typeRange[1].toFixed(2)}%</strong><p>{result.distanceToRange.type ? `범위까지 ${result.distanceToRange.type}%p` : "현재 범위 안"}</p></article>
+      <article><span>기간 권장 범위</span><strong>{result.horizonRange[0].toFixed(2)}~{result.horizonRange[1].toFixed(2)}%</strong><p>{result.distanceToRange.horizon ? `범위까지 ${result.distanceToRange.horizon}%p` : "현재 범위 안"}</p></article>
+      <article><span>성장성</span><strong>{result.characteristics.growth}</strong><p>국내주식+해외주식+주식형 ETF·펀드</p></article>
+      <article><span>방어력 · 유동성</span><strong>{result.characteristics.defense} · {result.characteristics.liquidity}</strong><p>채권+현금성자산 · 현금성자산 비중</p></article>
+    </div>}
+
+    {tab === "coach" && <div className="tab-panel ai-coach-panel"><TuriniAvatar motion="reading" className="turini-ai-coach" decorative /><div><p className="eyebrow">TURINI GPT COACH</p>{aiFeedbackLoading ? <><h3>GPT가 규칙 계산 결과를 읽고 있어요…</h3><p>숫자는 바꾸지 않고 이해하기 쉽게 설명해요.</p></> : aiFeedback ? <><h3>{aiFeedback.summary_ko}</h3>{aiFeedback.strengths.length > 0 && <section className="ai-feedback-section"><b>강점</b><ul>{aiFeedback.strengths.map((item) => <li key={item}>{item}</li>)}</ul></section>}{aiFeedback.cautions.length > 0 && <section className="ai-feedback-section"><b>주의할 점</b><ul>{aiFeedback.cautions.map((item) => <li key={item}>{item}</li>)}</ul></section>}{aiFeedback.improvements.length > 0 && <section className="ai-feedback-section"><b>개선 방향</b><ul>{aiFeedback.improvements.map((item) => <li key={item}>{item}</li>)}</ul></section>}{aiFeedback.concept_refs.length > 0 && <p className="ai-concepts">함께 공부할 개념 · {aiFeedback.concept_refs.join(" · ")}</p>}</> : <><h3>{result.coach}</h3><p>{aiFeedbackError || "규칙 분석 결과를 표시하고 있어요."}</p>{aiFeedbackError && <button className="primary-button" onClick={retryAiFeedback}>GPT 코칭 다시 받기</button>}</>}<button className="primary-button" onClick={() => setTab("rebalance")}>조정 방향 보기</button></div></div>}
+    {result.unlockTags.length ? <p className="ai-concepts portfolio-unlock">다음 학습 추천 · {result.unlockTags.join(" · ")}</p> : null}
+    <p className="result-disclaimer">본 분석은 교육 목적의 참고 자료이며 특정 금융상품에 대한 투자 권유가 아닙니다. 위험도는 과거 3년 변동성에 근거한 추정이며 미래 손익을 보장하지 않습니다. 신용·유동성·운영위험과 과거 변동성이 미래를 대표하지 않을 가능성은 별도로 확인해야 합니다.</p>
   </section>;
 }

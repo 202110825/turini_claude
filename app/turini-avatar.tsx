@@ -281,7 +281,7 @@ export function TuriniDressUp({
             className="turini-avatar--editor"
             label="꾸미는 중인 나의 투리니"
             scene
-            animated={false}
+            animated
           />
         ) : (
           <div className="turini-avatar turini-avatar--editor turini-avatar--turn">
@@ -306,8 +306,10 @@ export function TuriniDressUp({
         {view !== "front" ? (
           <p className="turini-dress__view-note">
             {view === "three-quarter-rear" && bag
-              ? "가방만 따로 보는 각도예요. 모자·안경까지 함께 입은 모습은 정면에서 볼 수 있어요."
-              : "등이 보이는 각도예요. 전체 모습은 정면에서 볼 수 있어요."}
+              ? "선택한 가방을 실제로 멘 착용샷이에요."
+              : bag
+                ? "선택한 가방이 등 위에 보이도록 표시했어요. 전체 조합은 정면에서 확인할 수 있어요."
+                : "등이 보이는 각도예요. 가방을 선택하면 이 화면에도 바로 표시돼요."}
           </p>
         ) : null}
       </div>

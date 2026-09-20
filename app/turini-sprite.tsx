@@ -32,14 +32,14 @@ const ATLAS_WEBP = "/assets/turini/optimized/animations/turini-animation-atlas-1
 
 const FRAMES = 12;
 const ROWS = 6;
-/** 한 바퀴 길이(ms). 12프레임 기준 한 프레임 110ms — 너무 빠르지도 느리지도 않습니다. */
+/** 한 바퀴 길이(ms). 정답·오답은 약 2초로 천천히 재생해 급하게 튀지 않게 합니다. */
 const DURATION: Record<TuriniMotion, number> = {
-  idle: 1440,
-  thinking: 1440,
-  reading: 1560,
-  correct: 1200,
-  wrong: 1320,
-  celebrate: 1200,
+  idle: 2200,
+  thinking: 2200,
+  reading: 2400,
+  correct: 1950,
+  wrong: 2100,
+  celebrate: 1900,
 };
 
 const ROW: Record<TuriniMotion, number> = {

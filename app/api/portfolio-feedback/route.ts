@@ -103,18 +103,23 @@ export async function POST(request: Request) {
     return `${label} 비중을 ${Math.abs(action.delta)}%p ${action.action === "확대" ? "늘리는" : "줄이는"} 방향을 살펴보세요.`;
   });
   const weakTags = stringArray(context.weakTags).filter((tag) => CONCEPT_TAGS.includes(tag as typeof CONCEPT_TAGS[number]));
-  const fallbackSummary = `종합점수는 ${computed.score}점(${computed.scoreLabel})이고 위험점수는 ${computed.riskScore}점이에요.`;
+  const fallbackSummary = `현재 포트폴리오는 ${computed.riskGrade}등급(${computed.riskGradeName})이며, 연환산 변동성은 ${computed.riskScore}%예요. ${computed.fitTypeLabel}, ${computed.fitHorizonLabel}.`;
   const allocationPercent = Object.fromEntries(
     ASSETS.map((asset) => [asset.key, Math.round((context.allocation as Allocation)[asset.key] * 1000) / 10]),
   );
-  const targetPercent = Object.fromEntries(
-    ASSETS.map((asset) => [asset.key, Math.round(computed.target[asset.key] * 1000) / 10]),
+  const nearTargetPercent = Object.fromEntries(
+    ASSETS.map((asset) => [asset.key, Math.round(computed.nearTarget.allocation[asset.key] * 1000) / 10]),
+  );
+  const baseTargetPercent = Object.fromEntries(
+    ASSETS.map((asset) => [asset.key, Math.round(computed.baseTarget.allocation[asset.key] * 1000) / 10]),
   );
   const allowedNumbers = [
-    computed.score, computed.scoreMax, computed.riskScore, computed.fit, computed.horizonFit,
-    computed.diversification, computed.concentrationPenalty, computed.profileMatch.gap, ASSETS.length,
+    computed.riskScore, computed.riskGrade, computed.riskLevel, computed.downside6m,
+    computed.fitType, computed.fitHorizon, computed.distanceToRange.type, computed.distanceToRange.horizon,
+    computed.typeRange[0], computed.typeRange[1], computed.horizonRange[0], computed.horizonRange[1], ASSETS.length,
     ...Object.values(allocationPercent),
-    ...Object.values(targetPercent),
+    ...Object.values(nearTargetPercent),
+    ...Object.values(baseTargetPercent),
     ...computed.rebalancingActions.map((action) => Math.abs(action.delta)),
   ];
 
@@ -139,6 +144,8 @@ export async function POST(request: Request) {
           "서버가 계산한 computed와 context만 근거로 쉽고 친절한 한국어를 사용하세요.",
           "strengths와 cautions는 computed의 같은 배열을 문장 변경 없이 그대로 반환하세요.",
           "improvements는 context.allowedImprovements를 순서와 문장 변경 없이 그대로 반환하세요.",
+          "종합점수, 별점, Excellent/Good/Fair/Poor 라벨은 사용하지 마세요.",
+          "위험도·성향 적합·기간 적합은 서로 합산하지 말고 각각 설명하세요.",
           "입력에 없는 숫자, 금액, 자산, 종목, 상품, 회사, 티커, 수익률을 만들지 마세요.",
           "금광기업 주식형 ETF는 금이 아니라 주식형 ETF·펀드로 해석하세요.",
           "특정 종목·상품 추천, 직접적인 매수·매도 지시, 미래 수익률 예측, 원금·수익 보장을 하지 마세요.",
@@ -152,7 +159,8 @@ export async function POST(request: Request) {
             tendency,
             horizon,
             allocation_percent: allocationPercent,
-            recommended_allocation_percent: targetPercent,
+            near_target_allocation_percent: nearTargetPercent,
+            base_target_allocation_percent: baseTargetPercent,
             weakTags,
             allowedImprovements: deterministicImprovements,
           },
@@ -176,7 +184,7 @@ export async function POST(request: Request) {
 
     const parsed = JSON.parse(outputText) as Record<string, unknown>;
     const returnedRefs = stringArray(parsed.concept_refs).filter((tag) => CONCEPT_TAGS.includes(tag as typeof CONCEPT_TAGS[number]));
-    const conceptRefs = (weakTags.length ? weakTags : returnedRefs).slice(0, 3);
+    const conceptRefs = [...new Set([...(computed.unlockTags || []), ...weakTags, ...returnedRefs])].slice(0, 3);
     return NextResponse.json({
       feedback: {
         summary_ko: safeSummary(parsed.summary_ko, allowedNumbers, fallbackSummary),

@@ -82,26 +82,40 @@
 /* ── 움직임 ────────────────────────────────────────────────── */
 @keyframes turini-rig-breathe {
   0%, 100% { transform: scale(1, 1); }
-  50%      { transform: scale(.997, 1.006); }
+  50%      { transform: scale(.995, 1.012); }
 }
 @keyframes turini-rig-head {
-  0%, 100% { transform: rotate(-.35deg) translateY(0); }
-  50%      { transform: rotate(.35deg) translateY(-.08%); }
+  0%, 100% { transform: rotate(-.65deg) translateY(0); }
+  50%      { transform: rotate(.65deg) translateY(-.22%); }
 }
 @keyframes turini-rig-shadow {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50%      { transform: scale(.992); opacity: .96; }
+  50%      { transform: scale(.985); opacity: .94; }
+}
+@keyframes turini-rig-arm-left {
+  0%, 100% { transform: rotate(.8deg); }
+  50%      { transform: rotate(-1deg); }
+}
+@keyframes turini-rig-arm-right {
+  0%, 100% { transform: rotate(-.8deg); }
+  50%      { transform: rotate(1deg); }
 }
 
 /* 발은 고정하고 호흡·고개·눈만 아주 천천히 움직여 화면이 산만하지 않게 합니다. */
 .turini-rig[data-live="true"] .turini-rig__body {
-  animation: turini-rig-breathe 6.8s cubic-bezier(.45, .05, .55, .95) infinite;
+  animation: turini-rig-breathe 5.8s cubic-bezier(.45, .05, .55, .95) infinite;
 }
 .turini-rig[data-live="true"] .turini-rig__head {
-  animation: turini-rig-head 8.4s cubic-bezier(.45, .05, .55, .95) infinite;
+  animation: turini-rig-head 7.6s cubic-bezier(.45, .05, .55, .95) infinite;
 }
 .turini-rig[data-live="true"] .turini-rig__shadow {
-  animation: turini-rig-shadow 6.8s cubic-bezier(.45, .05, .55, .95) infinite;
+  animation: turini-rig-shadow 5.8s cubic-bezier(.45, .05, .55, .95) infinite;
+}
+.turini-rig[data-live="true"] .turini-rig__arm--left {
+  animation: turini-rig-arm-left 6.4s cubic-bezier(.45, .05, .55, .95) infinite;
+}
+.turini-rig[data-live="true"] .turini-rig__arm--right {
+  animation: turini-rig-arm-right 6.4s cubic-bezier(.45, .05, .55, .95) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

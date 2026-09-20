@@ -20,6 +20,11 @@ test("new users are routed to diagnosis before the main app", () => {
   assert.match(pageSource, /onClick=\{startDiagnosis\}/);
 });
 
+test("home controls have real actions instead of decorative dead buttons", () => {
+  assert.match(pageSource, /className="round-notice" onClick=\{\(\) => navigate\("profile"\)\}/);
+  assert.doesNotMatch(pageSource, /<button[^>]+aria-label="알림"[^>]*>[^<]*<span \/><\/button>/);
+});
+
 test("account state is saved through the server and old browser demo data is discarded", () => {
   assert.match(pageSource, /fetch\("\/api\/account"/);
   assert.match(pageSource, /method: "PUT"/);
@@ -42,14 +47,16 @@ test("GPT portfolio coaching is called through a server-only API route", () => {
   assert.match(envExampleSource, /OPENAI_API_KEY=your_api_key_here/);
 });
 
-test("portfolio screen exposes the revised asset classification help", () => {
+test("portfolio screen exposes v11 classification and three-axis results", () => {
   assert.match(pageSource, /asset-info-button/);
   assert.doesNotMatch(pageSource, /asset-classification-note/);
   assert.match(pageSource, /portfolioRuleVersion: PORTFOLIO_RULE_VERSION/);
   assert.doesNotMatch(pageSource, /분석 가중치/);
-  assert.match(pageSource, /종목·업종 내부 집중은 평가하지 않음/);
-  assert.match(pageSource, /scoreMax\}점 만점/);
-  assert.match(pageSource, /학습용 조정 방향/);
+  assert.match(pageSource, /위험등급/);
+  assert.match(pageSource, /성향 적합/);
+  assert.match(pageSource, /기간 적합/);
+  assert.doesNotMatch(pageSource, /scoreMax\}점 만점/);
+  assert.match(pageSource, /가까운 목표/);
 });
 
 test("리밸런싱은 비율과 방향만 알려 주고 금액은 쓰지 않는다", () => {

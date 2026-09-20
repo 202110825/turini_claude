@@ -11,6 +11,7 @@ import {
 } from "../app/quiz-scheduler.ts";
 
 const questions = JSON.parse(fs.readFileSync(new URL("../public/data/quizData_720_FINAL.json", import.meta.url), "utf8"));
+const diagnostic = JSON.parse(fs.readFileSync(new URL("../public/data/diagnostic_quiz.json", import.meta.url), "utf8"));
 const expectedTypes = new Set(["4지선다", "OX", "빈칸선택", "빈칸직접입력"]);
 const officialSourceDomains = new Set([
   "blogs.cfainstitute.org", "data.krx.co.kr", "files.stlouisfed.org", "global.krx.co.kr", "kind.krx.co.kr",
@@ -57,6 +58,16 @@ test("all 720 learning questions are structurally usable", () => {
       assert.equal(new Set(variants.map((question) => question[field])).size, 1, `${baseId}: ${field}`);
     }
   }
+});
+
+test("updated diagnosis uses the new period/experience questions and per-question points", () => {
+  const byId = Object.fromEntries(diagnostic.map((question) => [question.diagnostic_quiz_id, question]));
+  assert.match(byId.P2.question_text, /어느 정도 기간/);
+  assert.deepEqual([byId.P2.choice_1, byId.P2.choice_2, byId.P2.choice_3], ["1년 미만", "1년 이상~3년 미만", "3년 이상"]);
+  assert.match(byId.P3.question_text, /투자한 경험.*가장 위험도/);
+  assert.match(byId.P3.choice_3, /주식.*선물·옵션.*파생상품/);
+  assert.equal(byId.C1.point, 1);
+  assert.equal(byId.C2.point, 5);
 });
 
 test("tag crosswalk and parent index exactly match the 720-question dataset", () => {

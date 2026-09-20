@@ -386,10 +386,10 @@
     "category": null,
     "difficulty": null,
     "question_type": "객관식",
-    "question_text": "내가 투자한 자산이 한 달 만에 20% 하락했다면 나는?",
-    "choice_1": "더 큰 손실이 두려워 곧바로 팔거나 안전한 자산으로 옮긴다.",
-    "choice_2": "하락 이유를 확인하고 원래 계획대로 유지할지 판단한다.",
-    "choice_3": "저가 매수 기회로 보고 추가 투자도 고려한다.",
+    "question_text": "현재 투자하려는 자금을 어느 정도 기간 동안 투자할 수 있는가?",
+    "choice_1": "1년 미만",
+    "choice_2": "1년 이상~3년 미만",
+    "choice_3": "3년 이상",
     "choice_4": null,
     "answer": null,
     "point": null,
@@ -397,7 +397,7 @@
     "style_score_2": 2,
     "style_score_3": 3,
     "weakness_tag": null,
-    "explanation": "① 안정형: 손실 회피 / ② 중립형: 신중 대응 / ③ 공격형: 위험 감수"
+    "explanation": "① 안정형: 단기 투자 / ② 중립형: 중기 투자 / ③ 공격형: 장기 투자"
   },
   {
     "diagnostic_quiz_id": "P3",
@@ -406,10 +406,10 @@
     "category": null,
     "difficulty": null,
     "question_type": "객관식",
-    "question_text": "내가 바라는 투자 스타일에 가장 가까운 것은?",
-    "choice_1": "수익이 낮더라도 예금처럼 안정적으로 천천히 불리고 싶다.",
-    "choice_2": "적당한 위험을 지면서 시장 평균 수준의 수익을 추구한다.",
-    "choice_3": "변동성이 크더라도 장기적으로 더 높은 수익을 노린다.",
+    "question_text": "지금까지 투자한 경험이 있는 금융상품 중 가장 위험도가 높은 것은?",
+    "choice_1": "투자경험이 거의 없거나 예·적금, 국채, MMF, CMA 등 안정성이 높은 상품 위주로 투자했다.",
+    "choice_2": "채권, 채권형·혼합형 펀드, 원금보장 또는 일부보장형 ELS 등 비교적 안정적인 상품을 경험했다.",
+    "choice_3": "주식, 주식형펀드, 원금비보장 ELS, ELW, 선물·옵션, 파생상품 등 가격변동이 큰 상품을 경험했다.",
     "choice_4": null,
     "answer": null,
     "point": null,
@@ -417,6 +417,6 @@
     "style_score_2": 2,
     "style_score_3": 3,
     "weakness_tag": null,
-    "explanation": "① 안정형: 안정성 중심 / ② 중립형: 균형 중심 / ③ 공격형: 성장 중심"
+    "explanation": "① 안정형: 저위험 상품 경험 / ② 중립형: 중위험 상품 경험 / ③ 공격형: 고위험 상품 경험"
   }
 ]

@@ -187,12 +187,11 @@ export const SPRITE_SLOTS = ["neck", "glasses", "hat"] as const;
 export type SpriteSlot = (typeof SPRITE_SLOTS)[number];
 
 export const SLOT_ANCHOR: Record<AvatarSlot, SlotAnchor> = {
-  // 이마 선(눈 위)에 모자 아래쪽 가운데를 맞춥니다.
-  hat: { x: 49.7, y: 31.6, gx: 0.5, gy: 1, span: 34, fit: "width" },
-  // 두 눈 한가운데에 안경 한가운데를 맞추고, 세로는 12% 로 묶어 입을 덮지 않게 합니다.
-  glasses: { x: 49.7, y: 37.7, gx: 0.5, gy: 0.5, span: 24.5, fit: "width", spanY: 11 },
-  // 목이 시작하는 곳에 목장식 위쪽 가운데를 맞춥니다. 넥타이가 무릎까지 내려오지 않게 세로 제한.
-  neck: { x: 49.7, y: 52.2, gx: 0.5, gy: 0, span: 25, fit: "width", spanY: 25 },
+  // 착용 완성본을 기준으로 얼굴의 실제 랜드마크에 맞춥니다.
+  // 모자는 눈썹 위, 안경은 두 눈, 목장식은 턱 아래를 넘지 않게 세로 한계도 둡니다.
+  hat: { x: 49.7, y: 33.2, gx: 0.5, gy: 1, span: 41, fit: "width" },
+  glasses: { x: 49.7, y: 38, gx: 0.5, gy: 0.5, span: 43, fit: "width", spanY: 11 },
+  neck: { x: 49.7, y: 49.5, gx: 0.5, gy: 0, span: 30, fit: "width", spanY: 22 },
   // 등 뒤 — 몸통 레이어보다 아래에 그리므로 절대 몸 앞으로 나오지 않습니다.
   bag: { x: 49.8, y: 62, gx: 0.5, gy: 0.5, span: 36, fit: "max" },
   background: { x: 50, y: 50, gx: 0.5, gy: 0.5, span: 100, fit: "width" },

@@ -279,16 +279,18 @@ test("꾸미기 편집기 밖에서는 저장한 액세서리를 자동 적용�
     background: null,
   });
   assert.match(avatarSource, /const customization = given \?\? BASE_CUSTOMIZATION/);
-  assert.match(avatarSource, /customization=\{customization\}[\s\S]*animated=\{false\}/);
+  assert.match(avatarSource, /const customization = given \?\? BASE_CUSTOMIZATION/);
+  assert.match(avatarSource, /customization=\{customization\}[\s\S]*animated/);
   assert.match(avatarSource, /선택한 외형은 이 꾸미기 화면에서만 보여요/);
 });
 
-test("평상시 캐릭터는 팔다리를 흔들지 않고 호흡과 고개만 천천히 움직인다", async () => {
+test("평상시 캐릭터는 발을 고정하고 호흡·고개·팔을 아주 천천히 움직인다", async () => {
   const rigStyle = await readFile(new URL("../app/turini-rig.css", import.meta.url), "utf8");
-  assert.doesNotMatch(rigStyle, /turini-rig-arm-left/);
+  assert.match(rigStyle, /turini-rig-arm-left/);
   assert.doesNotMatch(rigStyle, /turini-rig-leg-left/);
-  assert.match(rigStyle, /turini-rig-breathe 6\.8s/);
-  assert.match(rigStyle, /turini-rig-head 8\.4s/);
+  assert.match(rigStyle, /turini-rig-breathe 5\.8s/);
+  assert.match(rigStyle, /turini-rig-head 7\.6s/);
+  assert.match(rigStyle, /rotate\(\.8deg\)/);
   assert.match(avatarSource, /motion === "thinking"/);
   assert.match(avatarSource, /motion === "reading"/);
 });
